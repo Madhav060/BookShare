@@ -1,16 +1,21 @@
 // src/utils/api.ts
-import axios from "axios";
+import axios from 'axios';
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: '/api',
 });
+
+// Store token in memory (will be set by AuthContext)
+let sessionToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  sessionToken = token;
+}
 
 // Add auth header to all requests
 api.interceptors.request.use((config) => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    const user = JSON.parse(userStr);
-    config.headers['x-user-id'] = user.id;
+  if (sessionToken) {
+    config.headers['x-session-token'] = sessionToken;
   }
   return config;
 });

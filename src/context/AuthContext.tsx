@@ -1,5 +1,5 @@
 // src/context/AuthContext.tsx
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 
 interface User {
@@ -11,7 +11,8 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (user: User) => void;
+  token: string | null;
+  login: (user: User, token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -20,29 +21,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    // Load user from localStorage on mount
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
-
-  const login = (user: User) => {
-    setUser(user);
-    localStorage.setItem('user', JSON.stringify(user));
+  const login = (userData: User, sessionToken: string) => {
+    setUser(userData);
+    setToken(sessionToken);
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
+    setToken(null);
     router.push('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
