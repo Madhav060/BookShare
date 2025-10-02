@@ -8,41 +8,60 @@ datasource db {
 }
 
 model User {
-  id         Int             @id @default(autoincrement())
+  id         Int              @id @default(autoincrement())
   name       String
-  email      String          @unique
-  password   String
-  role       String          @default("user") // user, delivery_agent, admin
-  booksOwned Book[]          @relation("OwnedBooks")
-  booksHeld  Book[]          @relation("HeldBooks")
-  requests   BorrowRequest[] @relation("UserRequests")
-  createdAt  DateTime        @default(now())
+  email      String           @unique
+  password   String           // Stores bcrypt hash
+  role       Role             @default(USER)
+  createdAt  DateTime         @default(now())
+  
+  ownedBooks Book[]           @relation("OwnedBooks")
+  heldBooks  Book[]           @relation("HeldBooks")
+  requests   BorrowRequest[]  @relation("UserRequests")
 }
 
 model Book {
-  id        Int      @id @default(autoincrement())
-  title     String
-  author    String
-  ownerId   Int
-  userId    Int
-  owner     User     @relation("OwnedBooks", fields: [ownerId], references: [id])
-  holder    User     @relation("HeldBooks", fields: [userId], references: [id])
-  status    String   @default("available") // available, borrowed
-  createdAt DateTime @default(now())
-
-  // 🔥 Add this back-relation
+  id             Int              @id @default(autoincrement())
+  title          String
+  author         String
+  status         BookStatus       @default(AVAILABLE)
+  createdAt      DateTime         @default(now())
+  
+  owner          User             @relation("OwnedBooks", fields: [ownerId], references: [id])
+  ownerId        Int
+  
+  holder         User             @relation("HeldBooks", fields: [userId], references: [id])
+  userId         Int              // Initially same as ownerId
+  
   borrowRequests BorrowRequest[]
 }
 
 model BorrowRequest {
-  id          Int      @id @default(autoincrement())
-  bookId      Int
-  borrowerId  Int
-  ownerId     Int
-  status      String   @default("pending") // pending, accepted, completed
+  id         Int                  @id @default(autoincrement())
+  status     BorrowRequestStatus  @default(PENDING)
+  createdAt  DateTime             @default(now())
+  
+  book       Book                 @relation(fields: [bookId], references: [id])
+  bookId     Int
+  
+  borrower   User                 @relation("UserRequests", fields: [borrowerId], references: [id])
+  borrowerId Int
+}
 
-  book        Book     @relation(fields: [bookId], references: [id])
-  borrower    User     @relation("UserRequests", fields: [borrowerId], references: [id])
+enum Role {
+  USER
+  DELIVERY_AGENT
+  ADMIN
+}
 
-  createdAt   DateTime @default(now())
+enum BookStatus {
+  AVAILABLE
+  BORROWED
+}
+
+enum BorrowRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
 }
