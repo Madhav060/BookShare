@@ -1,5 +1,3 @@
-// src/types/index.ts
-
 export interface User {
   id: number;
   name: string;
@@ -8,13 +6,20 @@ export interface User {
   createdAt: Date;
 }
 
+export interface UserBasic {
+  id: number;
+  name: string;
+  email: string;
+}
+
 export interface Book {
   id: number;
   title: string;
   author: string;
   status: 'AVAILABLE' | 'BORROWED';
-  ownerId: number;
-  userId: number;
+  isVisible?: boolean; // Optional if not always present
+  ownerId?: number;    // Optional for flexibility
+  userId?: number;     // Optional for flexibility
   createdAt: Date;
   owner?: UserBasic;
   holder?: UserBasic;
@@ -28,12 +33,6 @@ export interface BorrowRequest {
   createdAt: Date;
   book?: Book;
   borrower?: UserBasic;
-}
-
-export interface UserBasic {
-  id: number;
-  name: string;
-  email: string;
 }
 
 export interface RequestsResponse {

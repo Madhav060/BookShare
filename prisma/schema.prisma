@@ -11,7 +11,7 @@ model User {
   id         Int              @id @default(autoincrement())
   name       String
   email      String           @unique
-  password   String           // Stores bcrypt hash
+  password   String
   role       Role             @default(USER)
   createdAt  DateTime         @default(now())
   
@@ -25,13 +25,15 @@ model Book {
   title          String
   author         String
   status         BookStatus       @default(AVAILABLE)
+  isVisible      Boolean          @default(true)    // 🆕 NEW: Hide/show books
+  deletedAt      DateTime?                          // 🆕 NEW: Soft delete
   createdAt      DateTime         @default(now())
   
   owner          User             @relation("OwnedBooks", fields: [ownerId], references: [id])
   ownerId        Int
   
   holder         User             @relation("HeldBooks", fields: [userId], references: [id])
-  userId         Int              // Initially same as ownerId
+  userId         Int
   
   borrowRequests BorrowRequest[]
 }

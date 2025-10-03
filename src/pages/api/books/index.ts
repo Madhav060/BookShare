@@ -18,7 +18,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           author,
           ownerId: req.userId!,
           userId: req.userId!, // Initially, holder is owner
-          status: 'AVAILABLE'
+          status: 'AVAILABLE',
+          isVisible: true // New books are visible by default
         },
         include: {
           owner: {
@@ -37,10 +38,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
   } else if (req.method === 'GET') {
     try {
-      // Get all available books for the home page
+      // Get all visible, non-deleted, available books for the home page
       const books = await prisma.book.findMany({
         where: {
-          status: 'AVAILABLE'
+          status: 'AVAILABLE',
+          isVisible: true,      // 🆕 Only visible books
+          deletedAt: null       // 🆕 Only non-deleted books
         },
         include: {
           owner: {

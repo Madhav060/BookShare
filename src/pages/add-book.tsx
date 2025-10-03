@@ -1,5 +1,5 @@
 // src/pages/add-book.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/router';
 import api from '../utils/api';
 import Layout from '../components/Layout';
@@ -12,11 +12,13 @@ export default function AddBook() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
 
-  // Redirect if not authenticated
-  if (!isAuthenticated) {
-    router.push('/login');
-    return null;
-  }
+  // Redirect if not authenticated (the correct way)
+  useEffect(() => {
+    // We also check if the router is ready before trying to push
+    if (!isAuthenticated && router.isReady) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, router]); // Dependency array ensures this runs when state changes
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +37,11 @@ export default function AddBook() {
     }
   };
 
+  // Render a loading state or null while checking auth to prevent flash of content
+  if (!isAuthenticated) {
+    return <div>Loading...</div>; // Or return null
+  }
+  
   return (
     <Layout>
       <div style={{ maxWidth: '600px', margin: '50px auto' }}>
@@ -51,6 +58,7 @@ export default function AddBook() {
           </div>
         )}
         <form onSubmit={handleSubmit}>
+          {/* ... your form inputs and button ... */}
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px' }}>Title</label>
             <input

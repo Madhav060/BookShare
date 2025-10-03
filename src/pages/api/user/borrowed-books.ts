@@ -1,4 +1,4 @@
-// src/pages/api/user/my-books.ts
+// src/pages/api/user/borrowed-books.ts
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
@@ -9,30 +9,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    // Get books I own (excluding soft-deleted)
-    const ownedBooks = await prisma.book.findMany({
-      where: {
-        ownerId: req.userId,
-        deletedAt: null
-      },
-      include: {
-        owner: {
-          select: { id: true, name: true, email: true }
-        },
-        holder: {
-          select: { id: true, name: true, email: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Get books I'm currently holding (borrowed from others)
+    // Get books where the user is the holder but not the owner
     const borrowedBooks = await prisma.book.findMany({
       where: {
         userId: req.userId,
-        ownerId: { not: req.userId }, // Not my own books
-        status: 'BORROWED',
-        deletedAt: null
+        ownerId: {
+          not: req.userId // Exclude books they own
+        },
+        deletedAt: null // Exclude soft-deleted books
       },
       include: {
         owner: {
@@ -40,17 +24,24 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         },
         holder: {
           select: { id: true, name: true, email: true }
+        },
+        borrowRequests: {
+          where: {
+            borrowerId: req.userId,
+            status: 'ACCEPTED'
+          },
+          take: 1,
+          orderBy: {
+            createdAt: 'desc'
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ 
-      owned: ownedBooks,
-      borrowed: borrowedBooks
-    });
+    res.json(borrowedBooks);
   } catch (error: any) {
-    console.error('Get my books error:', error);
+    console.error('Get borrowed books error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
