@@ -13,6 +13,7 @@ export default function MyShelf() {
   const [borrowedBooks, setBorrowedBooks] = useState<Book[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('owned');
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState<number | null>(null);
   const { isAuthenticated } = useAuth();
   const router = useRouter();
 
@@ -22,13 +23,14 @@ export default function MyShelf() {
       return;
     }
     loadBooks();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   const loadBooks = async () => {
+    setLoading(true);
     try {
       const res = await api.get('/user/my-books');
-      setOwnedBooks(res.data.owned);
-      setBorrowedBooks(res.data.borrowed);
+      setOwnedBooks(res.data.owned || []);
+      setBorrowedBooks(res.data.borrowed || []);
     } catch (err) {
       console.error('Error loading books:', err);
     } finally {
@@ -36,23 +38,41 @@ export default function MyShelf() {
     }
   };
 
-  const handleBookAction = async (bookId: number, action: 'hide' | 'show' | 'delete') => {
-    if (action === 'delete') {
-      if (!confirm('Are you sure you want to delete this book? This cannot be undone.')) {
-        return;
-      }
-    }
-
+  const handleToggleVisibility = async (bookId: number) => {
+    if (processing) return;
+    
+    setProcessing(bookId);
     try {
-      await api.patch(`/books/${bookId}/actions`, { action });
-      alert(`Book ${action}d successfully!`);
-      loadBooks(); // Reload books
+      await api.patch(`/books/${bookId}/toggle-visibility`);
+      await loadBooks();
     } catch (err: any) {
-      alert(err.response?.data?.error || `Failed to ${action} book`);
+      alert(err.response?.data?.error || 'Failed to toggle visibility');
+    } finally {
+      setProcessing(null);
     }
   };
 
-  if (!isAuthenticated) return null;
+  const handleDelete = async (bookId: number) => {
+    if (processing) return;
+
+    const confirmed = confirm('Are you sure you want to delete this book? This action cannot be undone.');
+    if (!confirmed) return;
+
+    setProcessing(bookId);
+    try {
+      await api.delete(`/books/${bookId}/delete`);
+      alert('Book deleted successfully!');
+      await loadBooks();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete book');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (loading) {
     return <Layout><p>Loading your books...</p></Layout>;
@@ -65,19 +85,19 @@ export default function MyShelf() {
       <div>
         <h1>📚 My Shelf</h1>
 
-        {/* Tab Navigation */}
+        {/* Tabs */}
         <div style={{ 
           display: 'flex', 
           gap: '10px', 
-          marginBottom: '30px',
-          borderBottom: '2px solid #ecf0f1'
+          marginBottom: '30px', 
+          borderBottom: '2px solid #ddd' 
         }}>
           <button
             onClick={() => setActiveTab('owned')}
             style={{
               padding: '10px 20px',
               background: activeTab === 'owned' ? '#3498db' : 'transparent',
-              color: activeTab === 'owned' ? 'white' : '#7f8c8d',
+              color: activeTab === 'owned' ? 'white' : '#333',
               border: 'none',
               borderBottom: activeTab === 'owned' ? '3px solid #2980b9' : 'none',
               cursor: 'pointer',
@@ -92,7 +112,7 @@ export default function MyShelf() {
             style={{
               padding: '10px 20px',
               background: activeTab === 'borrowed' ? '#3498db' : 'transparent',
-              color: activeTab === 'borrowed' ? 'white' : '#7f8c8d',
+              color: activeTab === 'borrowed' ? 'white' : '#333',
               border: 'none',
               borderBottom: activeTab === 'borrowed' ? '3px solid #2980b9' : 'none',
               cursor: 'pointer',
@@ -104,7 +124,7 @@ export default function MyShelf() {
           </button>
         </div>
 
-        {/* Books Display */}
+        {/* Books Grid */}
         {currentBooks.length === 0 ? (
           <div style={{ 
             padding: '40px', 
@@ -133,6 +153,22 @@ export default function MyShelf() {
                 Add Your First Book
               </a>
             )}
+            {activeTab === 'borrowed' && (
+              <a 
+                href="/"
+                style={{
+                  display: 'inline-block',
+                  marginTop: '15px',
+                  padding: '10px 20px',
+                  background: '#3498db',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '4px'
+                }}
+              >
+                Browse Books
+              </a>
+            )}
           </div>
         ) : (
           <div style={{ 
@@ -152,14 +188,25 @@ export default function MyShelf() {
                   opacity: book.isVisible ? 1 : 0.7
                 }}
               >
-                <h3 style={{ marginTop: 0, color: '#2c3e50' }}>{book.title}</h3>
+                <h3 style={{ marginTop: 0, color: '#2c3e50' }}>
+                  {book.title}
+                  {!book.isVisible && activeTab === 'owned' && (
+                    <span style={{ 
+                      marginLeft: '10px', 
+                      fontSize: '12px', 
+                      color: '#e74c3c' 
+                    }}>
+                      (Hidden)
+                    </span>
+                  )}
+                </h3>
                 <p style={{ color: '#7f8c8d', fontSize: '14px' }}>
                   by {book.author}
                 </p>
 
-                {activeTab === 'borrowed' && (
+                {activeTab === 'borrowed' && book.owner && (
                   <p style={{ fontSize: '12px', color: '#95a5a6', marginBottom: '10px' }}>
-                    Owner: {book.owner?.name}
+                    Owner: {book.owner.name}
                   </p>
                 )}
 
@@ -185,43 +232,57 @@ export default function MyShelf() {
                   </p>
                 )}
 
-                {/* Action Buttons - Only for owned books */}
                 {activeTab === 'owned' && (
                   <div style={{ 
                     marginTop: '15px', 
                     display: 'flex', 
-                    gap: '8px',
-                    flexWrap: 'wrap'
+                    gap: '5px' 
                   }}>
                     <button
-                      onClick={() => handleBookAction(book.id, book.isVisible ? 'hide' : 'show')}
+                      onClick={() => handleToggleVisibility(book.id)}
+                      disabled={processing === book.id || book.status === 'BORROWED'}
                       style={{
                         flex: 1,
                         padding: '8px',
-                        background: '#95a5a6',
+                        background: book.isVisible ? '#f39c12' : '#27ae60',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
-                        cursor: 'pointer',
+                        cursor: (processing === book.id || book.status === 'BORROWED') 
+                          ? 'not-allowed' 
+                          : 'pointer',
+                        opacity: (processing === book.id || book.status === 'BORROWED') 
+                          ? 0.5 
+                          : 1,
                         fontSize: '12px'
                       }}
+                      title={book.status === 'BORROWED' 
+                        ? 'Cannot modify borrowed books' 
+                        : book.isVisible ? 'Hide from public' : 'Show to public'}
                     >
-                      {book.isVisible ? '🙈 Hide' : '👁️ Show'}
+                      {book.isVisible ? '👁️ Hide' : '👁️ Show'}
                     </button>
                     <button
-                      onClick={() => handleBookAction(book.id, 'delete')}
-                      disabled={book.status === 'BORROWED'}
+                      onClick={() => handleDelete(book.id)}
+                      disabled={processing === book.id || book.status === 'BORROWED'}
                       style={{
                         flex: 1,
                         padding: '8px',
-                        background: book.status === 'BORROWED' ? '#bdc3c7' : '#e74c3c',
+                        background: '#e74c3c',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
-                        cursor: book.status === 'BORROWED' ? 'not-allowed' : 'pointer',
+                        cursor: (processing === book.id || book.status === 'BORROWED') 
+                          ? 'not-allowed' 
+                          : 'pointer',
+                        opacity: (processing === book.id || book.status === 'BORROWED') 
+                          ? 0.5 
+                          : 1,
                         fontSize: '12px'
                       }}
-                      title={book.status === 'BORROWED' ? 'Cannot delete borrowed books' : ''}
+                      title={book.status === 'BORROWED' 
+                        ? 'Cannot delete borrowed books' 
+                        : 'Delete book'}
                     >
                       🗑️ Delete
                     </button>
