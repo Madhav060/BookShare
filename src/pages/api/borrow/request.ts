@@ -1,7 +1,8 @@
-// src/pages/api/borrow/request.ts
+// src/pages/api/borrow/request.ts - UPDATED WITH NOTIFICATIONS
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
+import { notifyBorrowRequest } from '../../../lib/notifications';
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -17,7 +18,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
     // Check if book exists and is available
     const book = await prisma.book.findUnique({
-      where: { id: Number(bookId) }
+      where: { id: Number(bookId) },
+      include: {
+        owner: { select: { id: true, name: true } }
+      }
     });
 
     if (!book) {
@@ -49,6 +53,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       });
     }
 
+    // Increment view count
+    await prisma.book.update({
+      where: { id: Number(bookId) },
+      data: {
+        viewCount: { increment: 1 }
+      }
+    });
+
     // Create borrow request
     const borrowRequest = await prisma.borrowRequest.create({
       data: {
@@ -69,6 +81,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         }
       }
     });
+
+    // Send notification to book owner
+    await notifyBorrowRequest(
+      book.ownerId,
+      req.user!.name,
+      book.title,
+      borrowRequest.id
+    );
 
     res.status(201).json(borrowRequest);
   } catch (error: any) {

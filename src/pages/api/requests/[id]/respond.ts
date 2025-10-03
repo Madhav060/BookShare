@@ -1,7 +1,8 @@
-// src/pages/api/requests/[id]/respond.ts
+// src/pages/api/requests/[id]/respond.ts - UPDATED WITH NOTIFICATIONS
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../../middleware/auth';
+import { notifyRequestAccepted, notifyRequestRejected } from '../../../../lib/notifications';
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'PATCH') {
@@ -63,10 +64,31 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           where: { id: request.bookId },
           data: {
             status: 'BORROWED',
-            userId: request.borrowerId
+            userId: request.borrowerId,
+            borrowCount: { increment: 1 }
+          }
+        }),
+        // Update user statistics
+        prisma.user.update({
+          where: { id: request.borrowerId },
+          data: {
+            totalBorrows: { increment: 1 }
+          }
+        }),
+        prisma.user.update({
+          where: { id: request.book.ownerId },
+          data: {
+            totalLends: { increment: 1 }
           }
         })
       ]);
+
+      // Send notification
+      await notifyRequestAccepted(
+        request.borrowerId,
+        request.book.title,
+        request.id
+      );
 
       return res.status(200).json({
         message: 'Request accepted successfully',
@@ -86,6 +108,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           borrower: { select: { id: true, name: true, email: true } }
         }
       });
+
+      // Send notification
+      await notifyRequestRejected(
+        request.borrowerId,
+        request.book.title,
+        request.id
+      );
 
       return res.status(200).json({
         message: 'Request rejected successfully',
