@@ -12,33 +12,29 @@ datasource db {
 // ============================================
 
 model User {
-  id         Int              @id @default(autoincrement())
-  name       String
-  email      String           @unique
-  password   String
-  role       Role             @default(USER)
-  
+  id                   Int                   @id @default(autoincrement())
+  name                 String
+  email                String                @unique
+  password             String
+  role                 Role                  @default(USER)
   // 🆕 Phase 2: User Profile Fields
-  bio        String?
-  avatar     String?
-  location   String?
-  rating     Float            @default(5.0)
-  totalBorrows Int            @default(0)
-  totalLends   Int            @default(0)
-  
-  createdAt  DateTime         @default(now())
-  
+  bio                  String?
+  avatar               String?
+  location             String?
+  rating               Float                 @default(5.0)
+  totalBorrows         Int                   @default(0)
+  totalLends           Int                   @default(0)
+  createdAt            DateTime              @default(now())
   // Existing Relations
-  ownedBooks       Book[]              @relation("OwnedBooks")
-  heldBooks        Book[]              @relation("HeldBooks")
-  requests         BorrowRequest[]     @relation("UserRequests")
-  
+  ownedBooks           Book[]                @relation("OwnedBooks")
+  heldBooks            Book[]                @relation("HeldBooks")
+  requests             BorrowRequest[]       @relation("UserRequests")
   // 🆕 Phase 2: New Relations
   deliveryAgentProfile DeliveryAgentProfile?
-  assignedDeliveries   Delivery[]          @relation("DeliveryAgent")
-  givenReviews         Review[]            @relation("ReviewAuthor")
-  receivedRatings      UserRating[]        @relation("RatedUser")
-  givenRatings         UserRating[]        @relation("RaterUser")
+  assignedDeliveries   Delivery[]            @relation("DeliveryAgent")
+  givenReviews         Review[]              @relation("ReviewAuthor")
+  receivedRatings      UserRating[]          @relation("RatedUser")
+  givenRatings         UserRating[]          @relation("RaterUser")
   notifications        Notification[]
 }
 
@@ -57,15 +53,15 @@ model DeliveryAgentProfile {
 }
 
 model UserRating {
-  id           Int      @id @default(autoincrement())
-  ratedUserId  Int
-  ratedUser    User     @relation("RatedUser", fields: [ratedUserId], references: [id])
-  raterUserId  Int
-  rater        User     @relation("RaterUser", fields: [raterUserId], references: [id])
-  rating       Int      // 1-5 stars
-  comment      String?
-  context      String   // 'borrower' or 'lender'
-  createdAt    DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  ratedUserId Int
+  ratedUser   User     @relation("RatedUser", fields: [ratedUserId], references: [id])
+  raterUserId Int
+  rater       User     @relation("RaterUser", fields: [raterUserId], references: [id])
+  rating      Int      // 1-5 stars
+  comment     String?
+  context     String   // 'borrower' or 'lender'
+  createdAt   DateTime @default(now())
 
   @@unique([ratedUserId, raterUserId, context])
 }
@@ -75,35 +71,31 @@ model UserRating {
 // ============================================
 
 model Book {
-  id             Int              @id @default(autoincrement())
-  title          String
-  author         String
-  status         BookStatus       @default(AVAILABLE)
-  isVisible      Boolean          @default(true)
-  deletedAt      DateTime?
-  
+  id           Int            @id @default(autoincrement())
+  title        String
+  author       String
+  status       BookStatus     @default(AVAILABLE)
+  isVisible    Boolean        @default(true)
+  deletedAt    DateTime?
   // 🆕 Phase 2: Enhanced Book Fields
-  isbn           String?
-  description    String?
-  coverImage     String?
-  publishYear    Int?
-  language       String           @default("English")
-  pageCount      Int?
-  viewCount      Int              @default(0)
-  borrowCount    Int              @default(0)
-  
-  createdAt      DateTime         @default(now())
-  
+  isbn         String?
+  description  String?
+  coverImage   String?
+  publishYear  Int?
+  language     String         @default("English")
+  pageCount    Int?
+  viewCount    Int            @default(0)
+  borrowCount  Int            @default(0)
+  createdAt    DateTime       @default(now())
   // Existing Relations
-  owner          User             @relation("OwnedBooks", fields: [ownerId], references: [id])
-  ownerId        Int
-  holder         User             @relation("HeldBooks", fields: [userId], references: [id])
-  userId         Int
+  owner        User           @relation("OwnedBooks", fields: [ownerId], references: [id])
+  ownerId      Int
+  holder       User           @relation("HeldBooks", fields: [userId], references: [id])
+  userId       Int
   borrowRequests BorrowRequest[]
-  
   // 🆕 Phase 2: New Relations
-  categories     BookCategory[]
-  reviews        Review[]
+  categories   BookCategory[]
+  reviews      Review[]
 }
 
 model Category {
@@ -139,16 +131,13 @@ model Review {
 // ============================================
 
 model BorrowRequest {
-  id         Int                  @id @default(autoincrement())
-  status     BorrowRequestStatus  @default(PENDING)
-  createdAt  DateTime             @default(now())
-  
-  book       Book                 @relation(fields: [bookId], references: [id])
+  id         Int                 @id @default(autoincrement())
+  status     BorrowRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  book       Book                @relation(fields: [bookId], references: [id])
   bookId     Int
-  
-  borrower   User                 @relation("UserRequests", fields: [borrowerId], references: [id])
+  borrower   User                @relation("UserRequests", fields: [borrowerId], references: [id])
   borrowerId Int
-  
   // 🆕 Phase 2: Delivery Relation
   delivery   Delivery?
 }
@@ -158,24 +147,27 @@ model BorrowRequest {
 // ============================================
 
 model Delivery {
-  id                Int            @id @default(autoincrement())
-  borrowRequestId   Int            @unique
-  borrowRequest     BorrowRequest  @relation(fields: [borrowRequestId], references: [id])
-  
+  id                Int           @id @default(autoincrement())
+  borrowRequestId   Int           @unique
+  borrowRequest     BorrowRequest @relation(fields: [borrowRequestId], references: [id])
   agentId           Int?
-  agent             User?          @relation("DeliveryAgent", fields: [agentId], references: [id])
-  
+  agent             User?         @relation("DeliveryAgent", fields: [agentId], references: [id])
   pickupAddress     String
   deliveryAddress   String
   status            DeliveryStatus @default(PENDING)
-  
   pickupScheduled   DateTime?
   pickupCompleted   DateTime?
   deliveryCompleted DateTime?
   trackingNotes     String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  // ✅ NEW FIELDS ADDED HERE
+  verificationCode  String?
+  codeVerifiedAt    DateTime?
+  paymentStatus     PaymentStatus @default(PENDING)
+  paymentAmount     Float?
+  paymentId         String?
 }
 
 // ============================================
@@ -240,4 +232,11 @@ enum NotificationType {
   DELIVERY_DELIVERED
   NEW_REVIEW
   SYSTEM_MESSAGE
+}
+
+// ✅ NEW ENUM ADDED HERE
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }

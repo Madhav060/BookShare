@@ -1,4 +1,4 @@
-// src/pages/index.tsx - UPDATED WITH SEARCH
+// src/pages/index.tsx - FULLY UPDATED
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../components/Layout";
@@ -163,8 +163,10 @@ export default function Home() {
             <p style={{ fontSize: '18px', color: '#7f8c8d' }}>
               No books found. {router.query.q ? 'Try a different search term.' : 'Be the first to add one!'}
             </p>
-            <Link href="/add-book">
-              <a style={{
+            {/* THIS IS THE CORRECTED LINK */}
+            <Link 
+              href="/add-book"
+              style={{
                 display: 'inline-block',
                 marginTop: '15px',
                 padding: '10px 20px',
@@ -172,9 +174,9 @@ export default function Home() {
                 color: 'white',
                 textDecoration: 'none',
                 borderRadius: '4px'
-              }}>
-                Add a Book
-              </a>
+              }}
+            >
+              Add a Book
             </Link>
           </div>
         ) : (

@@ -1,7 +1,8 @@
-// src/pages/api/delivery/create.ts
+// src/pages/api/delivery/create.ts - WITH VERIFICATION CODE
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
+
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -40,10 +41,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       });
     }
 
-    // Check if user is either the borrower or the owner
-    if (borrowRequest.borrowerId !== req.userId && borrowRequest.book.ownerId !== req.userId) {
+    // IMPORTANT: Only the borrower can request delivery (not the owner)
+    if (borrowRequest.borrowerId !== req.userId) {
       return res.status(403).json({ 
-        error: 'Only the borrower or book owner can request delivery' 
+        error: 'Only the borrower can request delivery service' 
       });
     }
 

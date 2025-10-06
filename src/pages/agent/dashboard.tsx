@@ -1,4 +1,4 @@
-// src/pages/agent/dashboard.tsx
+// src/pages/agent/dashboard.tsx - WITH VERIFICATION
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
@@ -59,6 +59,27 @@ export default function AgentDashboard() {
     }
   };
 
+  const handleVerify = async (deliveryId: number) => {
+    if (processing) return;
+
+    const code = prompt('Enter the 6-digit verification code from the borrower:');
+    
+    if (!code) return;
+
+    setProcessing(deliveryId);
+    try {
+      await api.post(`/delivery/${deliveryId}/verify`, {
+        verificationCode: code
+      });
+      alert('Code verified! You can now pick up the book.');
+      await loadDeliveries();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Invalid verification code');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const handleUpdateStatus = async (deliveryId: number, newStatus: string) => {
     if (processing) return;
 
@@ -80,30 +101,40 @@ export default function AgentDashboard() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PENDING': return '#f39c12';
-      case 'ASSIGNED': return '#3498db';
-      case 'PICKED_UP': return '#9b59b6';
-      case 'IN_TRANSIT': return '#1abc9c';
-      case 'DELIVERED': return '#27ae60';
-      case 'COMPLETED': return '#95a5a6';
-      default: return '#95a5a6';
-    }
+    const colors: { [key: string]: string } = {
+      'PENDING': '#f39c12',
+      'ASSIGNED': '#3498db',
+      'PICKED_UP': '#9b59b6',
+      'IN_TRANSIT': '#1abc9c',
+      'DELIVERED': '#27ae60',
+      'COMPLETED': '#95a5a6'
+    };
+    return colors[status] || '#95a5a6';
   };
 
-  const getNextActions = (status: string) => {
-    switch (status) {
-      case 'ASSIGNED':
-        return [{ label: 'Mark as Picked Up', value: 'PICKED_UP' }];
-      case 'PICKED_UP':
-        return [{ label: 'Mark In Transit', value: 'IN_TRANSIT' }];
-      case 'IN_TRANSIT':
-        return [{ label: 'Mark as Delivered', value: 'DELIVERED' }];
-      case 'DELIVERED':
-        return [{ label: 'Complete Delivery', value: 'COMPLETED' }];
-      default:
-        return [];
+  const getNextActions = (delivery: Delivery) => {
+    const actions = [];
+    
+    // If assigned but not verified, show verify button
+    if (delivery.status === 'ASSIGNED' && !delivery.codeVerifiedAt) {
+      return [{ label: '🔐 Verify Code', value: 'VERIFY', type: 'verify' }];
     }
+    
+    // After verification, allow status updates
+    if (delivery.codeVerifiedAt) {
+      switch (delivery.status) {
+        case 'ASSIGNED':
+          return [{ label: '📦 Mark as Picked Up', value: 'PICKED_UP', type: 'status' }];
+        case 'PICKED_UP':
+          return [{ label: '🚚 Mark In Transit', value: 'IN_TRANSIT', type: 'status' }];
+        case 'IN_TRANSIT':
+          return [{ label: '✅ Mark as Delivered', value: 'DELIVERED', type: 'status' }];
+        case 'DELIVERED':
+          return [{ label: '✓ Complete Delivery', value: 'COMPLETED', type: 'status' }];
+      }
+    }
+    
+    return [];
   };
 
   if (!isAuthenticated || user?.role !== 'DELIVERY_AGENT') return null;
@@ -160,46 +191,36 @@ export default function AgentDashboard() {
         {activeTab === 'available' && (
           <div>
             {availableDeliveries.length === 0 ? (
-              <div style={{ 
-                padding: '40px', 
-                textAlign: 'center', 
-                background: '#f8f9fa', 
-                borderRadius: '8px' 
-              }}>
+              <div style={{ padding: '40px', textAlign: 'center', background: '#f8f9fa', borderRadius: '8px' }}>
                 <p>No available deliveries at the moment.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {availableDeliveries.map((delivery) => (
-                  <div
-                    key={delivery.id}
-                    style={{
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      background: 'white'
-                    }}
-                  >
+                  <div key={delivery.id} style={{
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    background: 'white'
+                  }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                       <div>
                         <h3 style={{ margin: '0 0 10px 0' }}>
-                          {delivery.borrowRequest?.book?.title ?? 'Unknown Title'}
+                          Delivery Request #{delivery.id}
                         </h3>
                         <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
-                          by {delivery.borrowRequest?.book?.author ?? 'Unknown Author'}
+                          Delivery Fee: ₹{delivery.paymentAmount || 50}
                         </p>
                       </div>
-                      <div
-                        style={{
-                          padding: '5px 15px',
-                          borderRadius: '20px',
-                          background: getStatusColor(delivery.status),
-                          color: 'white',
-                          height: 'fit-content',
-                          fontWeight: 'bold',
-                          fontSize: '12px'
-                        }}
-                      >
+                      <div style={{
+                        padding: '5px 15px',
+                        borderRadius: '20px',
+                        background: getStatusColor(delivery.status),
+                        color: 'white',
+                        height: 'fit-content',
+                        fontWeight: 'bold',
+                        fontSize: '12px'
+                      }}>
                         {delivery.status}
                       </div>
                     </div>
@@ -211,29 +232,22 @@ export default function AgentDashboard() {
                       <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
                     </div>
 
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '10px',
-                      paddingTop: '15px',
-                      borderTop: '1px solid #ddd'
-                    }}>
-                      <button
-                        onClick={() => handleAssign(delivery.id)}
-                        disabled={processing === delivery.id}
-                        style={{
-                          padding: '10px 20px',
-                          background: '#27ae60',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: processing === delivery.id ? 'not-allowed' : 'pointer',
-                          opacity: processing === delivery.id ? 0.7 : 1,
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        {processing === delivery.id ? 'Assigning...' : 'Accept Delivery'}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleAssign(delivery.id)}
+                      disabled={processing === delivery.id}
+                      style={{
+                        padding: '10px 20px',
+                        background: '#27ae60',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: processing === delivery.id ? 'not-allowed' : 'pointer',
+                        opacity: processing === delivery.id ? 0.7 : 1,
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {processing === delivery.id ? 'Assigning...' : 'Accept Delivery'}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -245,47 +259,51 @@ export default function AgentDashboard() {
         {activeTab === 'my' && (
           <div>
             {myDeliveries.length === 0 ? (
-              <div style={{ 
-                padding: '40px', 
-                textAlign: 'center', 
-                background: '#f8f9fa', 
-                borderRadius: '8px' 
-              }}>
+              <div style={{ padding: '40px', textAlign: 'center', background: '#f8f9fa', borderRadius: '8px' }}>
                 <p>You don't have any assigned deliveries yet.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {myDeliveries.map((delivery) => (
-                  <div
-                    key={delivery.id}
-                    style={{
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      background: 'white'
-                    }}
-                  >
+                  <div key={delivery.id} style={{
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    background: 'white'
+                  }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
                       <div>
                         <h3 style={{ margin: '0 0 10px 0' }}>
-                          {delivery.borrowRequest?.book?.title ?? 'Unknown Title'}
+                          Delivery #{delivery.id}
                         </h3>
                         <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
-                          by {delivery.borrowRequest?.book?.author ?? 'Unknown Author'}
+                          Fee: ₹{delivery.paymentAmount || 50}
                         </p>
                       </div>
-                      <div
-                        style={{
+                      <div>
+                        <div style={{
                           padding: '5px 15px',
                           borderRadius: '20px',
                           background: getStatusColor(delivery.status),
                           color: 'white',
-                          height: 'fit-content',
                           fontWeight: 'bold',
-                          fontSize: '12px'
-                        }}
-                      >
-                        {delivery.status}
+                          fontSize: '12px',
+                          marginBottom: '5px'
+                        }}>
+                          {delivery.status}
+                        </div>
+                        {delivery.codeVerifiedAt && (
+                          <div style={{
+                            padding: '3px 8px',
+                            background: '#27ae60',
+                            color: 'white',
+                            borderRadius: '3px',
+                            fontSize: '10px',
+                            textAlign: 'center'
+                          }}>
+                            ✓ Verified
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -294,12 +312,6 @@ export default function AgentDashboard() {
                     </div>
                     <div style={{ marginBottom: '10px' }}>
                       <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
-                    </div>
-                    <div style={{ marginBottom: '10px', fontSize: '14px', color: '#7f8c8d' }}>
-                      <strong>From:</strong> {delivery.borrowRequest?.book?.owner?.name ?? 'Unknown'}
-                    </div>
-                    <div style={{ marginBottom: '15px', fontSize: '14px', color: '#7f8c8d' }}>
-                      <strong>To:</strong> {delivery.borrowRequest?.borrower?.name}
                     </div>
 
                     {delivery.trackingNotes && (
@@ -314,21 +326,32 @@ export default function AgentDashboard() {
                       </div>
                     )}
 
-                    {getNextActions(delivery.status).length > 0 && (
+                    {!delivery.codeVerifiedAt && delivery.status === 'ASSIGNED' && (
                       <div style={{ 
-                        display: 'flex', 
-                        gap: '10px',
-                        paddingTop: '15px',
-                        borderTop: '1px solid #ddd'
+                        padding: '12px', 
+                        background: '#fff3cd', 
+                        borderRadius: '4px',
+                        marginBottom: '15px',
+                        color: '#856404'
                       }}>
-                        {getNextActions(delivery.status).map((action) => (
+                        ⚠️ <strong>Action Required:</strong> Ask the borrower for the 6-digit verification code before pickup.
+                      </div>
+                    )}
+
+                    {getNextActions(delivery).length > 0 && (
+                      <div style={{ display: 'flex', gap: '10px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
+                        {getNextActions(delivery).map((action) => (
                           <button
                             key={action.value}
-                            onClick={() => handleUpdateStatus(delivery.id, action.value)}
+                            onClick={() => 
+                              action.type === 'verify' 
+                                ? handleVerify(delivery.id)
+                                : handleUpdateStatus(delivery.id, action.value)
+                            }
                             disabled={processing === delivery.id}
                             style={{
                               padding: '10px 20px',
-                              background: '#3498db',
+                              background: action.type === 'verify' ? '#f39c12' : '#3498db',
                               color: 'white',
                               border: 'none',
                               borderRadius: '4px',

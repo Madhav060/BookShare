@@ -1,4 +1,4 @@
-// src/pages/register.tsx
+// src/pages/register.tsx - UPDATED
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
@@ -109,6 +109,9 @@ export default function Register() {
         </form>
         <p style={{ marginTop: '20px', textAlign: 'center' }}>
           Already have an account? <a href="/login">Login here</a>
+        </p>
+        <p style={{ textAlign: 'center', marginTop: '10px' }}>
+          Want to become a delivery agent? <a href="/register-agent" style={{ color: '#27ae60', fontWeight: 'bold' }}>Register as Agent</a>
         </p>
       </div>
     </Layout>

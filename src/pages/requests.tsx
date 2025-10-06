@@ -1,6 +1,7 @@
-// src/pages/requests.tsx
+// src/pages/requests.tsx - UPDATED WITH DELIVERY TRACKING
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import api from '../utils/api';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -88,7 +89,7 @@ export default function Requests() {
   return (
     <Layout>
       <div>
-        <h1>📋 Requests</h1>
+        <h1>📋 Borrow Requests</h1>
         
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', borderBottom: '2px solid #ddd' }}>
@@ -144,7 +145,7 @@ export default function Requests() {
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
                       <div style={{ flex: 1 }}>
                         <h3 style={{ marginTop: 0, color: '#2c3e50' }}>{request.book?.title}</h3>
                         <p style={{ color: '#7f8c8d', margin: '5px 0' }}>
@@ -210,21 +211,40 @@ export default function Requests() {
                         )}
                         
                         {request.status === 'ACCEPTED' && (
-                          <button
-                            onClick={() => handleComplete(request.id)}
-                            disabled={processing === request.id}
-                            style={{
-                              padding: '8px',
-                              background: '#3498db',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: processing === request.id ? 'not-allowed' : 'pointer',
-                              fontSize: '14px'
-                            }}
-                          >
-                            Mark as Returned
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleComplete(request.id)}
+                              disabled={processing === request.id}
+                              style={{
+                                padding: '8px',
+                                background: '#3498db',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: processing === request.id ? 'not-allowed' : 'pointer',
+                                fontSize: '14px'
+                              }}
+                            >
+                              Mark as Returned
+                            </button>
+                            {request.delivery && (
+                              <Link 
+                                href={`/delivery/track/${request.delivery.id}`}
+                                style={{
+                                  padding: '8px',
+                                  background: '#9b59b6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  textDecoration: 'none',
+                                  display: 'block',
+                                  textAlign: 'center',
+                                  fontSize: '14px'
+                                }}>
+                                🚚 Track Delivery
+                              </Link>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -241,7 +261,7 @@ export default function Requests() {
             {requests.outgoing.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', background: '#f8f9fa', borderRadius: '8px' }}>
                 <p>You haven't made any borrow requests yet.</p>
-                <a 
+                <Link 
                   href="/"
                   style={{
                     display: 'inline-block',
@@ -251,10 +271,9 @@ export default function Requests() {
                     color: 'white',
                     textDecoration: 'none',
                     borderRadius: '4px'
-                  }}
-                >
+                  }}>
                   Browse Books
-                </a>
+                </Link>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -282,30 +301,71 @@ export default function Requests() {
                           Requested on: {new Date(request.createdAt).toLocaleDateString()}
                         </p>
                       </div>
-                      <div
-                        style={{
-                          padding: '8px 16px',
-                          background: getStatusColor(request.status),
-                          color: 'white',
-                          borderRadius: '4px',
-                          fontSize: '14px',
-                          fontWeight: 'bold',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {getStatusLabel(request.status)}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div
+                          style={{
+                            padding: '8px 16px',
+                            background: getStatusColor(request.status),
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {getStatusLabel(request.status)}
+                        </div>
+                        {request.status === 'ACCEPTED' && request.delivery && (
+                          <Link 
+                            href={`/delivery/track/${request.delivery.id}`}
+                            style={{
+                              padding: '8px 16px',
+                              background: '#9b59b6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              textDecoration: 'none',
+                              display: 'block',
+                              textAlign: 'center',
+                              fontSize: '14px',
+                              whiteSpace: 'nowrap'
+                            }}>
+                            🚚 Track Delivery
+                          </Link>
+                        )}
                       </div>
                     </div>
                     
                     {request.status === 'ACCEPTED' && (
                       <div style={{ 
                         marginTop: '15px', 
-                        padding: '10px', 
+                        padding: '12px', 
                         background: '#d4edda', 
                         borderRadius: '4px',
                         color: '#155724'
                       }}>
-                        ✓ Your request was accepted! Please coordinate with the owner to collect the book.
+                        <div style={{ marginBottom: '10px' }}>
+                          ✓ Your request was accepted! 
+                        </div>
+                        {!request.delivery ? (
+                          <Link 
+                            href="/delivery/request"
+                            style={{
+                              display: 'inline-block',
+                              padding: '8px 16px',
+                              background: '#27ae60',
+                              color: 'white',
+                              textDecoration: 'none',
+                              borderRadius: '4px',
+                              fontWeight: 'bold'
+                            }}>
+                            🚚 Request Delivery Service
+                          </Link>
+                        ) : (
+                          <div style={{ fontSize: '14px', marginTop: '5px' }}>
+                            Delivery requested. <Link href={`/delivery/track/${request.delivery.id}`} style={{ color: '#155724', fontWeight: 'bold' }}>Track delivery →</Link>
+                          </div>
+                        )}
                       </div>
                     )}
                     

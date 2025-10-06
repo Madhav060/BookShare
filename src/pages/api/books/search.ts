@@ -1,4 +1,4 @@
-// src/pages/api/books/search.ts
+// src/pages/api/books/search.ts - FIXED (No Auth Required)
 import { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 
