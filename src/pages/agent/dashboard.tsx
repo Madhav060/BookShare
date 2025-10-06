@@ -1,4 +1,4 @@
-// src/pages/agent/dashboard.tsx - WITH VERIFICATION
+// src/pages/agent/dashboard.tsx - FIXED SESSION PERSISTENCE WITH PAYMENT & VERIFICATION
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
@@ -10,26 +10,30 @@ export default function AgentDashboard() {
   const [availableDeliveries, setAvailableDeliveries] = useState<Delivery[]>([]);
   const [myDeliveries, setMyDeliveries] = useState<Delivery[]>([]);
   const [activeTab, setActiveTab] = useState<'available' | 'my'>('available');
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-    if (user?.role !== 'DELIVERY_AGENT') {
+    
+    if (user?.role !== 'DELIVERY_AGENT' && user?.role !== 'ADMIN') {
       router.push('/');
       alert('Access denied. Delivery agent role required.');
       return;
     }
+    
     loadDeliveries();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, loading, router]);
 
   const loadDeliveries = async () => {
-    setLoading(true);
+    setDataLoading(true);
     try {
       const [availableRes, myRes] = await Promise.all([
         api.get('/delivery/available'),
@@ -40,7 +44,7 @@ export default function AgentDashboard() {
     } catch (err) {
       console.error('Error loading deliveries:', err);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -50,7 +54,7 @@ export default function AgentDashboard() {
     setProcessing(deliveryId);
     try {
       await api.patch(`/delivery/${deliveryId}/assign`);
-      alert('Delivery assigned successfully!');
+      alert('Delivery assigned successfully! Wait for payment before proceeding.');
       await loadDeliveries();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to assign delivery');
@@ -66,12 +70,17 @@ export default function AgentDashboard() {
     
     if (!code) return;
 
+    if (code.length !== 6 || !/^\d+$/.test(code)) {
+      alert('Invalid code format. Code must be 6 digits.');
+      return;
+    }
+
     setProcessing(deliveryId);
     try {
       await api.post(`/delivery/${deliveryId}/verify`, {
         verificationCode: code
       });
-      alert('Code verified! You can now pick up the book.');
+      alert('✅ Code verified! You can now pick up the book.');
       await loadDeliveries();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Invalid verification code');
@@ -112,9 +121,59 @@ export default function AgentDashboard() {
     return colors[status] || '#95a5a6';
   };
 
+  const getPaymentStatusBadge = (delivery: Delivery) => {
+    if (delivery.paymentStatus === 'COMPLETED') {
+      return (
+        <div style={{
+          padding: '5px 10px',
+          background: '#27ae60',
+          color: 'white',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          display: 'inline-block'
+        }}>
+          ✓ Paid
+        </div>
+      );
+    } else if (delivery.paymentStatus === 'PENDING') {
+      return (
+        <div style={{
+          padding: '5px 10px',
+          background: '#f39c12',
+          color: 'white',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          display: 'inline-block'
+        }}>
+          ⏳ Payment Pending
+        </div>
+      );
+    } else if (delivery.paymentStatus === 'FAILED') {
+      return (
+        <div style={{
+          padding: '5px 10px',
+          background: '#e74c3c',
+          color: 'white',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          display: 'inline-block'
+        }}>
+          ✗ Payment Failed
+        </div>
+      );
+    }
+    return null;
+  };
+
   const getNextActions = (delivery: Delivery) => {
-    const actions = [];
-    
+    // Can't do anything until payment is completed
+    if (delivery.paymentStatus !== 'COMPLETED') {
+      return [];
+    }
+
     // If assigned but not verified, show verify button
     if (delivery.status === 'ASSIGNED' && !delivery.codeVerifiedAt) {
       return [{ label: '🔐 Verify Code', value: 'VERIFY', type: 'verify' }];
@@ -137,9 +196,15 @@ export default function AgentDashboard() {
     return [];
   };
 
-  if (!isAuthenticated || user?.role !== 'DELIVERY_AGENT') return null;
-
   if (loading) {
+    return <Layout><p>Loading...</p></Layout>;
+  }
+
+  if (!isAuthenticated || (user?.role !== 'DELIVERY_AGENT' && user?.role !== 'ADMIN')) {
+    return null;
+  }
+
+  if (dataLoading) {
     return <Layout><p>Loading deliveries...</p></Layout>;
   }
 
@@ -209,19 +274,25 @@ export default function AgentDashboard() {
                           Delivery Request #{delivery.id}
                         </h3>
                         <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
+                          Book: {delivery.borrowRequest?.book?.title || 'N/A'}
+                        </p>
+                        <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
                           Delivery Fee: ₹{delivery.paymentAmount || 50}
                         </p>
                       </div>
-                      <div style={{
-                        padding: '5px 15px',
-                        borderRadius: '20px',
-                        background: getStatusColor(delivery.status),
-                        color: 'white',
-                        height: 'fit-content',
-                        fontWeight: 'bold',
-                        fontSize: '12px'
-                      }}>
-                        {delivery.status}
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          padding: '5px 15px',
+                          borderRadius: '20px',
+                          background: getStatusColor(delivery.status),
+                          color: 'white',
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                          marginBottom: '10px'
+                        }}>
+                          {delivery.status}
+                        </div>
+                        {getPaymentStatusBadge(delivery)}
                       </div>
                     </div>
 
@@ -232,22 +303,36 @@ export default function AgentDashboard() {
                       <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
                     </div>
 
-                    <button
-                      onClick={() => handleAssign(delivery.id)}
-                      disabled={processing === delivery.id}
-                      style={{
-                        padding: '10px 20px',
-                        background: '#27ae60',
-                        color: 'white',
-                        border: 'none',
+                    {delivery.paymentStatus === 'PENDING' && (
+                      <div style={{
+                        padding: '12px',
+                        background: '#fff3cd',
                         borderRadius: '4px',
-                        cursor: processing === delivery.id ? 'not-allowed' : 'pointer',
-                        opacity: processing === delivery.id ? 0.7 : 1,
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      {processing === delivery.id ? 'Assigning...' : 'Accept Delivery'}
-                    </button>
+                        marginBottom: '15px',
+                        fontSize: '14px'
+                      }}>
+                        ⏳ Waiting for borrower to complete payment...
+                      </div>
+                    )}
+
+                    {delivery.paymentStatus === 'COMPLETED' && (
+                      <button
+                        onClick={() => handleAssign(delivery.id)}
+                        disabled={processing === delivery.id}
+                        style={{
+                          padding: '10px 20px',
+                          background: '#27ae60',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: processing === delivery.id ? 'not-allowed' : 'pointer',
+                          opacity: processing === delivery.id ? 0.7 : 1,
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {processing === delivery.id ? 'Assigning...' : 'Accept Delivery'}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -277,10 +362,13 @@ export default function AgentDashboard() {
                           Delivery #{delivery.id}
                         </h3>
                         <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
+                          Book: {delivery.borrowRequest?.book?.title || 'N/A'}
+                        </p>
+                        <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
                           Fee: ₹{delivery.paymentAmount || 50}
                         </p>
                       </div>
-                      <div>
+                      <div style={{ textAlign: 'right' }}>
                         <div style={{
                           padding: '5px 15px',
                           borderRadius: '20px',
@@ -299,11 +387,14 @@ export default function AgentDashboard() {
                             color: 'white',
                             borderRadius: '3px',
                             fontSize: '10px',
-                            textAlign: 'center'
+                            marginTop: '5px'
                           }}>
                             ✓ Verified
                           </div>
                         )}
+                        <div style={{ marginTop: '5px' }}>
+                          {getPaymentStatusBadge(delivery)}
+                        </div>
                       </div>
                     </div>
 
@@ -326,7 +417,19 @@ export default function AgentDashboard() {
                       </div>
                     )}
 
-                    {!delivery.codeVerifiedAt && delivery.status === 'ASSIGNED' && (
+                    {delivery.paymentStatus !== 'COMPLETED' && (
+                      <div style={{ 
+                        padding: '12px', 
+                        background: '#ffebee', 
+                        borderRadius: '4px',
+                        marginBottom: '15px',
+                        color: '#c62828'
+                      }}>
+                        ⚠️ <strong>Payment not completed.</strong> Wait for borrower to pay before proceeding.
+                      </div>
+                    )}
+
+                    {!delivery.codeVerifiedAt && delivery.status === 'ASSIGNED' && delivery.paymentStatus === 'COMPLETED' && (
                       <div style={{ 
                         padding: '12px', 
                         background: '#fff3cd', 

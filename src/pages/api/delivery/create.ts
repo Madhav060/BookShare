@@ -1,8 +1,14 @@
-// src/pages/api/delivery/create.ts - WITH VERIFICATION CODE
+// src/pages/api/delivery/create.ts - WITH VERIFICATION CODE GENERATION
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
 
+/**
+ * Generate a random 6-digit verification code
+ */
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -41,10 +47,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       });
     }
 
-    // IMPORTANT: Only the borrower can request delivery (not the owner)
+    // CRITICAL: Only the borrower can request delivery (not the owner)
     if (borrowRequest.borrowerId !== req.userId) {
       return res.status(403).json({ 
-        error: 'Only the borrower can request delivery service' 
+        error: 'Only the borrower can request delivery service. The book owner cannot request delivery.' 
       });
     }
 
@@ -55,17 +61,27 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     if (existingDelivery) {
       return res.status(400).json({ 
-        error: 'Delivery already exists for this borrow request' 
+        error: 'Delivery already exists for this borrow request',
+        delivery: existingDelivery
       });
     }
 
-    // Create the delivery
+    // Generate verification code
+    const verificationCode = generateVerificationCode();
+    
+    // Set payment amount (you can make this dynamic based on distance, etc.)
+    const paymentAmount = 50; // ₹50 default delivery fee
+
+    // Create the delivery with verification code
     const delivery = await prisma.delivery.create({
       data: {
         borrowRequestId: Number(borrowRequestId),
         pickupAddress,
         deliveryAddress,
-        status: 'PENDING'
+        status: 'PENDING',
+        verificationCode,
+        paymentAmount,
+        paymentStatus: 'PENDING' // Payment required before pickup
       },
       include: {
         borrowRequest: {
@@ -83,7 +99,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     res.status(201).json({
       message: 'Delivery request created successfully',
-      delivery
+      delivery,
+      verificationCode, // Return code to borrower
+      paymentRequired: true,
+      paymentAmount
     });
   } catch (error: any) {
     console.error('Create delivery error:', error);

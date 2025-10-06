@@ -1,4 +1,4 @@
-// src/pages/add-book.tsx - ENHANCED VERSION
+// src/pages/add-book.tsx - FIXED SESSION PERSISTENCE
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
@@ -21,15 +21,17 @@ export default function AddBook() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string>('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated && router.isReady) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, loading, router]);
 
   useEffect(() => {
     loadCategories();
@@ -71,7 +73,7 @@ export default function AddBook() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       // Step 1: Create the book
@@ -108,12 +110,16 @@ export default function AddBook() {
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add book');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <Layout><div>Loading...</div></Layout>;
+  }
+
   if (!isAuthenticated) {
-    return <div>Loading...</div>;
+    return null;
   }
 
   return (
@@ -354,22 +360,22 @@ export default function AddBook() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={submitting}
             style={{
               width: '100%',
               marginTop: '30px',
               padding: '15px',
-              background: loading ? '#95a5a6' : '#3498db',
+              background: submitting ? '#95a5a6' : '#3498db',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: submitting ? 'not-allowed' : 'pointer',
               fontSize: '16px',
               fontWeight: 'bold',
               transition: 'background 0.2s'
             }}
           >
-            {loading ? 'Adding Book...' : '📚 Add Book'}
+            {submitting ? 'Adding Book...' : '📚 Add Book'}
           </button>
         </form>
       </div>

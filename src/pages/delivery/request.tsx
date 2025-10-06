@@ -1,4 +1,4 @@
-// src/pages/delivery/request.tsx
+// src/pages/delivery/request.tsx - FIXED SESSION PERSISTENCE WITH PAYMENT FLOW
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
@@ -10,21 +10,32 @@ export default function RequestDelivery() {
   const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
   const [pickupAddress, setPickupAddress] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  
+  // Payment & Code states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [deliveryId, setDeliveryId] = useState<number | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
-  const [showCode, setShowCode] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const [paymentAmount, setPaymentAmount] = useState(50);
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
+    
     loadAcceptedRequests();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loading, router]);
 
   const loadAcceptedRequests = async () => {
     try {
@@ -40,7 +51,7 @@ export default function RequestDelivery() {
       console.error('Error loading requests:', err);
       setError('Failed to load borrow requests');
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -67,18 +78,12 @@ export default function RequestDelivery() {
         deliveryAddress: deliveryAddress.trim()
       });
 
-      alert('Delivery request created successfully! An agent will be assigned soon.');
-
-      // Show verification code to user (if provided by API)
-      const code = res?.data?.verificationCode;
-      if (code) {
-        setVerificationCode(code);
-        setShowCode(true);
-        // user will continue from the modal; don't navigate away yet
-      } else {
-        // no code returned - navigate back to requests
-        router.push('/requests');
-      }
+      // Store delivery info and show payment modal
+      setDeliveryId(res.data.delivery.id);
+      setVerificationCode(res.data.verificationCode);
+      setPaymentAmount(res.data.paymentAmount || 50);
+      setShowPaymentModal(true);
+      
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create delivery request');
     } finally {
@@ -86,9 +91,42 @@ export default function RequestDelivery() {
     }
   };
 
-  if (!isAuthenticated) return null;
+  const handlePayment = async () => {
+    if (!deliveryId) return;
+
+    setProcessingPayment(true);
+    setError('');
+
+    try {
+      const res = await api.post(`/delivery/${deliveryId}/payment`, {
+        paymentMethod
+      });
+
+      // Payment successful - show success modal
+      setShowPaymentModal(false);
+      setShowSuccessModal(true);
+      
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Payment failed. Please try again.');
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(verificationCode);
+    alert('Verification code copied to clipboard!');
+  };
 
   if (loading) {
+    return <Layout><p>Loading...</p></Layout>;
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (dataLoading) {
     return <Layout><p>Loading...</p></Layout>;
   }
 
@@ -97,7 +135,7 @@ export default function RequestDelivery() {
       <div style={{ maxWidth: '800px', margin: '50px auto' }}>
         <h1>🚚 Request Delivery Service</h1>
         <p style={{ color: '#7f8c8d', marginBottom: '30px' }}>
-          Request a delivery agent to pick up your borrowed book from the owner and deliver it to you.
+          Request a delivery agent to pick up your borrowed book and deliver it to you.
         </p>
 
         <div style={{
@@ -110,11 +148,12 @@ export default function RequestDelivery() {
           <strong>📋 How it works:</strong>
           <ol style={{ marginTop: '10px', marginBottom: 0, paddingLeft: '20px' }}>
             <li>Select your accepted borrow request</li>
-            <li>Provide pickup address (book owner's location)</li>
-            <li>Provide delivery address (your location)</li>
-            <li>All delivery agents will see your request</li>
-            <li>An agent will accept and deliver the book to you</li>
-            <li>Track delivery status in real-time</li>
+            <li>Provide pickup & delivery addresses</li>
+            <li><strong>Pay delivery fee (₹50)</strong></li>
+            <li>Get 6-digit verification code</li>
+            <li>Agent accepts and contacts you</li>
+            <li>Share code with agent for pickup</li>
+            <li>Track delivery in real-time</li>
           </ol>
         </div>
 
@@ -130,8 +169,269 @@ export default function RequestDelivery() {
           </div>
         )}
 
+        {borrowRequests.length === 0 ? (
+          <div style={{
+            padding: '60px 20px',
+            textAlign: 'center',
+            background: '#f8f9fa',
+            borderRadius: '8px'
+          }}>
+            <p style={{ fontSize: '18px', color: '#7f8c8d' }}>
+              No accepted borrow requests available for delivery.
+            </p>
+            <p style={{ color: '#95a5a6', marginTop: '10px' }}>
+              You can request delivery once a borrow request has been accepted.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: '25px' }}>
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+                Select Borrow Request
+              </label>
+              <select
+                value={selectedRequest || ''}
+                onChange={(e) => setSelectedRequest(Number(e.target.value))}
+                required
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="">-- Choose a request --</option>
+                {borrowRequests.map((request) => (
+                  <option key={request.id} value={request.id}>
+                    "{request.book.title}" by {request.book.author} (Owner: {request.book.owner.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '25px' }}>
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+                Pickup Address (Book Owner's Location)
+              </label>
+              <textarea
+                value={pickupAddress}
+                onChange={(e) => setPickupAddress(e.target.value)}
+                placeholder="Enter the complete pickup address with landmarks"
+                required
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '25px' }}>
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+                Delivery Address (Your Location)
+              </label>
+              <textarea
+                value={deliveryAddress}
+                onChange={(e) => setDeliveryAddress(e.target.value)}
+                placeholder="Enter your complete address with landmarks"
+                required
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{
+              padding: '15px',
+              background: '#fff3cd',
+              borderRadius: '4px',
+              marginBottom: '25px',
+              fontSize: '14px'
+            }}>
+              <strong>💰 Delivery Fee: ₹50</strong>
+              <p style={{ margin: '10px 0 0 0' }}>
+                You'll be asked to pay after creating the delivery request.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                width: '100%',
+                padding: '15px',
+                background: submitting ? '#95a5a6' : '#27ae60',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}
+            >
+              {submitting ? 'Creating Request...' : '🚚 Continue to Payment'}
+            </button>
+          </form>
+        )}
+
+        {/* Payment Modal */}
+        {showPaymentModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              background: 'white',
+              padding: '40px',
+              borderRadius: '12px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}>
+              <h2 style={{ marginTop: 0, color: '#2c3e50' }}>💳 Complete Payment</h2>
+              
+              <div style={{
+                padding: '20px',
+                background: '#e3f2fd',
+                borderRadius: '8px',
+                marginBottom: '25px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '14px', color: '#7f8c8d', marginBottom: '5px' }}>
+                  Delivery Fee
+                </div>
+                <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#2c3e50' }}>
+                  ₹{paymentAmount}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '25px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+                  Select Payment Method
+                </label>
+                
+                {['card', 'upi', 'wallet'].map((method) => (
+                  <label
+                    key={method}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '15px',
+                      border: paymentMethod === method ? '2px solid #3498db' : '2px solid #ddd',
+                      borderRadius: '8px',
+                      marginBottom: '10px',
+                      cursor: 'pointer',
+                      background: paymentMethod === method ? '#e3f2fd' : 'white'
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={method}
+                      checked={paymentMethod === method}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      style={{ marginRight: '10px' }}
+                    />
+                    <span style={{ fontSize: '20px', marginRight: '10px' }}>
+                      {method === 'card' ? '💳' : method === 'upi' ? '📱' : '👛'}
+                    </span>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>
+                        {method === 'card' ? 'Card' : method === 'upi' ? 'UPI' : 'Wallet'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
+                        {method === 'card' ? 'Credit/Debit Card' : 
+                         method === 'upi' ? 'Google Pay, PhonePe' : 'Paytm, Amazon Pay'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{
+                padding: '15px',
+                background: '#fff3cd',
+                borderRadius: '4px',
+                marginBottom: '20px',
+                fontSize: '13px'
+              }}>
+                <strong>⚠️ Demo Mode:</strong> This is a dummy payment for demonstration. 
+                Click Pay Now to simulate payment.
+              </div>
+
+              {error && (
+                <div style={{
+                  padding: '15px',
+                  background: '#ffebee',
+                  color: '#c62828',
+                  borderRadius: '4px',
+                  marginBottom: '20px'
+                }}>
+                  {error}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    router.push('/requests');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    background: '#95a5a6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePayment}
+                  disabled={processingPayment}
+                  style={{
+                    flex: 2,
+                    padding: '12px',
+                    background: processingPayment ? '#95a5a6' : '#27ae60',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: processingPayment ? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {processingPayment ? 'Processing...' : `Pay ₹${paymentAmount}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Success Modal with Verification Code */}
-        {showCode && (
+        {showSuccessModal && (
           <div style={{
             position: 'fixed',
             top: 0,
@@ -152,9 +452,9 @@ export default function RequestDelivery() {
               textAlign: 'center',
               boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
+              <div style={{ fontSize: '64px', marginBottom: '20px' }}>✅</div>
               <h2 style={{ margin: '0 0 20px 0', color: '#27ae60' }}>
-                Delivery Request Created!
+                Payment Successful!
               </h2>
               
               <div style={{
@@ -182,10 +482,7 @@ export default function RequestDelivery() {
                   {verificationCode}
                 </div>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(verificationCode);
-                    alert('Code copied to clipboard!');
-                  }}
+                  onClick={copyCode}
                   style={{
                     padding: '8px 16px',
                     background: '#3498db',
@@ -208,18 +505,18 @@ export default function RequestDelivery() {
                 textAlign: 'left',
                 fontSize: '14px'
               }}>
-                <strong>⚠️ Important Instructions:</strong>
+                <strong>⚠️ IMPORTANT:</strong>
                 <ul style={{ marginTop: '10px', marginBottom: 0, paddingLeft: '20px' }}>
-                  <li>Save this code - you'll need it for delivery</li>
-                  <li>Show this code ONLY to the delivery agent</li>
-                  <li>Agent must verify this code before pickup</li>
-                  <li>Don't share this code with anyone else</li>
+                  <li>Save this code securely</li>
+                  <li>Share ONLY with the delivery agent</li>
+                  <li>Agent must verify before pickup</li>
+                  <li>Don't share with anyone else</li>
                 </ul>
               </div>
 
               <button
                 onClick={() => {
-                  setShowCode(false);
+                  setShowSuccessModal(false);
                   router.push('/requests');
                 }}
                 style={{
@@ -234,136 +531,10 @@ export default function RequestDelivery() {
                   fontWeight: 'bold'
                 }}
               >
-                Continue to Requests
+                Continue to My Requests
               </button>
             </div>
           </div>
-        )}
-
-        {borrowRequests.length === 0 ? (
-          <div style={{
-            padding: '60px 20px',
-            textAlign: 'center',
-            background: '#f8f9fa',
-            borderRadius: '8px'
-          }}>
-            <p style={{ fontSize: '18px', color: '#7f8c8d' }}>
-              No accepted borrow requests available for delivery.
-            </p>
-            <p style={{ color: '#95a5a6', marginTop: '10px' }}>
-              You can request delivery once a borrow request has been accepted.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            {/* Select Borrow Request */}
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-                Select Borrow Request
-              </label>
-              <select
-                value={selectedRequest || ''}
-                onChange={(e) => setSelectedRequest(Number(e.target.value))}
-                required
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              >
-                <option value="">-- Choose a request --</option>
-                {borrowRequests.map((request) => (
-                  <option key={request.id} value={request.id}>
-                    {request.book.title} by {request.book.author} - 
-                    (From: {request.book.owner.name}, To: {request.borrower.name})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Pickup Address */}
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-                Pickup Address (Book Owner's Address)
-              </label>
-              <textarea
-                value={pickupAddress}
-                onChange={(e) => setPickupAddress(e.target.value)}
-                placeholder="Enter the full pickup address including street, city, state, and postal code"
-                required
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-
-            {/* Delivery Address */}
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-                Delivery Address (Borrower's Address)
-              </label>
-              <textarea
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder="Enter the full delivery address including street, city, state, and postal code"
-                required
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-
-            {/* Info Box */}
-            <div style={{
-              padding: '15px',
-              background: '#e3f2fd',
-              borderLeft: '4px solid #2196f3',
-              borderRadius: '4px',
-              marginBottom: '25px'
-            }}>
-              <strong>📋 How it works:</strong>
-              <ol style={{ marginTop: '10px', marginBottom: 0, paddingLeft: '20px' }}>
-                <li>A delivery agent will be assigned to your request</li>
-                <li>The agent will pick up the book from the owner</li>
-                <li>The book will be delivered to the borrower</li>
-                <li>You can track the delivery status in real-time</li>
-              </ol>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                width: '100%',
-                padding: '15px',
-                background: submitting ? '#95a5a6' : '#27ae60',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: submitting ? 'not-allowed' : 'pointer',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                transition: 'background 0.2s'
-              }}
-            >
-              {submitting ? 'Creating Request...' : '🚚 Request Delivery Service'}
-            </button>
-          </form>
         )}
       </div>
     </Layout>

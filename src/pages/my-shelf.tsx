@@ -1,4 +1,4 @@
-// src/pages/my-shelf.tsx
+// src/pages/my-shelf.tsx - FIXED SESSION PERSISTENCE
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
@@ -12,21 +12,24 @@ export default function MyShelf() {
   const [ownedBooks, setOwnedBooks] = useState<Book[]>([]);
   const [borrowedBooks, setBorrowedBooks] = useState<Book[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('owned');
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
+    
     loadBooks();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, loading, router]);
 
   const loadBooks = async () => {
-    setLoading(true);
+    setDataLoading(true);
     try {
       const res = await api.get('/user/my-books');
       setOwnedBooks(res.data.owned || []);
@@ -34,7 +37,7 @@ export default function MyShelf() {
     } catch (err) {
       console.error('Error loading books:', err);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -70,11 +73,15 @@ export default function MyShelf() {
     }
   };
 
+  if (loading) {
+    return <Layout><p>Loading...</p></Layout>;
+  }
+
   if (!isAuthenticated) {
     return null;
   }
 
-  if (loading) {
+  if (dataLoading) {
     return <Layout><p>Loading your books...</p></Layout>;
   }
 

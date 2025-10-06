@@ -1,11 +1,26 @@
-// src/components/Layout.tsx - AGENT WITHOUT BOOK FEATURES
+// src/components/Layout.tsx - FIXED ROLE-BASED NAVIGATION
 import Link from "next/link";
 import { ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
 import NotificationBell from "./NotificationBell";
+import { useRouter } from "next/router";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout, isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // Role-based redirection
+    if (user?.role === 'DELIVERY_AGENT') {
+      router.push('/agent/dashboard');
+    } else if (user?.role === 'ADMIN') {
+      router.push('/admin/dashboard');
+    } else {
+      router.push('/'); // Regular users go to home
+    }
+  };
 
   if (loading) {
     return (
@@ -25,9 +40,20 @@ export default function Layout({ children }: { children: ReactNode }) {
       <nav style={{ padding: "10px 20px", background: "#2c3e50", color: "white" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-            <Link href="/" style={{ color: "white", textDecoration: "none", fontSize: "18px", fontWeight: "bold" }}>
+            {/* FIXED: Role-based logo redirect */}
+            <a 
+              href="#" 
+              onClick={handleLogoClick}
+              style={{ 
+                color: "white", 
+                textDecoration: "none", 
+                fontSize: "18px", 
+                fontWeight: "bold",
+                cursor: "pointer"
+              }}
+            >
               📚 BookShare
-            </Link>
+            </a>
             
             {isAuthenticated && (
               <>

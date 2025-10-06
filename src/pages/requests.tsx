@@ -1,4 +1,4 @@
-// src/pages/requests.tsx - UPDATED WITH DELIVERY TRACKING
+// src/pages/requests.tsx - FIXED SESSION PERSISTENCE
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -10,18 +10,21 @@ import { RequestsResponse, BorrowRequest } from '../types';
 export default function Requests() {
   const [requests, setRequests] = useState<RequestsResponse>({ incoming: [], outgoing: [] });
   const [activeTab, setActiveTab] = useState<'incoming' | 'outgoing'>('incoming');
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
+    
     loadRequests();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loading, router]);
 
   const loadRequests = async () => {
     try {
@@ -30,7 +33,7 @@ export default function Requests() {
     } catch (err) {
       console.error('Error loading requests:', err);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
@@ -80,9 +83,15 @@ export default function Requests() {
     }
   };
 
-  if (!isAuthenticated) return null;
-
   if (loading) {
+    return <Layout><p>Loading...</p></Layout>;
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (dataLoading) {
     return <Layout><p>Loading requests...</p></Layout>;
   }
 

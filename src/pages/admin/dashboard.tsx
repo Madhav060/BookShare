@@ -1,4 +1,4 @@
-// src/pages/admin/dashboard.tsx
+// src/pages/admin/dashboard.tsx - FIXED SESSION PERSISTENCE
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
@@ -31,22 +31,26 @@ interface AdminAnalytics {
 
 export default function AdminDashboard() {
   const [data, setData] = useState<AdminAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { user, isAuthenticated } = useAuth();
+  const [dataLoading, setDataLoading] = useState(true);
+  const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
+    
     if (user?.role !== 'ADMIN') {
       router.push('/');
       alert('Access denied. Admin role required.');
       return;
     }
+    
     loadAnalytics();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, loading, router]);
 
   const loadAnalytics = async () => {
     try {
@@ -55,13 +59,19 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Error loading analytics:', err);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
-  if (!isAuthenticated || user?.role !== 'ADMIN') return null;
-
   if (loading) {
+    return <Layout><p>Loading...</p></Layout>;
+  }
+
+  if (!isAuthenticated || user?.role !== 'ADMIN') {
+    return null;
+  }
+
+  if (dataLoading) {
     return <Layout><p>Loading dashboard...</p></Layout>;
   }
 

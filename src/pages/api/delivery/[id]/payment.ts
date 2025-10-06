@@ -1,4 +1,4 @@
-// src/pages/api/delivery/[id]/payment.ts
+// src/pages/api/delivery/[id]/payment.ts - COMPLETE PAYMENT FLOW
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../../middleware/auth';
@@ -11,6 +11,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const { id } = req.query;
   const { paymentMethod } = req.body; // 'card', 'upi', 'wallet'
 
+  if (!paymentMethod) {
+    return res.status(400).json({ error: 'Payment method is required' });
+  }
+
   try {
     // Find the delivery
     const delivery = await prisma.delivery.findUnique({
@@ -18,7 +22,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       include: {
         borrowRequest: {
           include: {
-            borrower: { select: { id: true } }
+            borrower: { select: { id: true, name: true } },
+            book: {
+              select: { id: true, title: true }
+            }
           }
         }
       }
@@ -31,30 +38,49 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // Check if user is the borrower
     if (delivery.borrowRequest.borrowerId !== req.userId) {
       return res.status(403).json({ 
-        error: 'Only the borrower can make payment' 
-      });
-    }
-
-    // Check if code is verified
-    if (!delivery.codeVerifiedAt) {
-      return res.status(400).json({ 
-        error: 'Delivery code must be verified before payment' 
+        error: 'Only the borrower can make payment for this delivery' 
       });
     }
 
     // Check if already paid
     if (delivery.paymentStatus === 'COMPLETED') {
       return res.status(400).json({ 
-        error: 'Payment already completed' 
+        error: 'Payment already completed for this delivery',
+        delivery
+      });
+    }
+
+    // Check if delivery is in correct status
+    if (delivery.status !== 'PENDING' && delivery.status !== 'ASSIGNED') {
+      return res.status(400).json({ 
+        error: 'Payment can only be made for pending or assigned deliveries' 
       });
     }
 
     // DUMMY PAYMENT PROCESSING
-    // In real app, integrate with Stripe, Razorpay, etc.
-    const paymentId = `PAY_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // In production, integrate with Razorpay, Stripe, etc.
+    const paymentId = `PAY_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
     
     // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Simulate random payment failure (5% chance for testing)
+    const shouldFail = Math.random() < 0.05; // 5% failure rate
+    
+    if (shouldFail) {
+      // Update payment status to FAILED
+      await prisma.delivery.update({
+        where: { id: Number(id) },
+        data: {
+          paymentStatus: 'FAILED'
+        }
+      });
+      
+      return res.status(400).json({ 
+        error: 'Payment processing failed. Please try again.',
+        paymentStatus: 'FAILED'
+      });
+    }
 
     // Update delivery with payment info
     const updatedDelivery = await prisma.delivery.update({
@@ -62,11 +88,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       data: {
         paymentStatus: 'COMPLETED',
         paymentId
+      },
+      include: {
+        borrowRequest: {
+          include: {
+            book: true,
+            borrower: { select: { id: true, name: true } }
+          }
+        }
       }
     });
 
     res.json({
-      message: 'Payment successful!',
+      success: true,
+      message: 'Payment successful! Your delivery will be processed.',
       delivery: updatedDelivery,
       payment: {
         id: paymentId,
@@ -74,11 +109,17 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         method: paymentMethod,
         status: 'COMPLETED',
         timestamp: new Date()
-      }
+      },
+      verificationCode: delivery.verificationCode, // Return code again for reference
+      nextSteps: [
+        'Wait for a delivery agent to accept your request',
+        'Share the verification code with the agent when they arrive',
+        'Track your delivery status in real-time'
+      ]
     });
   } catch (error: any) {
     console.error('Payment error:', error);
-    res.status(500).json({ error: 'Payment processing failed' });
+    res.status(500).json({ error: 'Payment processing failed. Please try again.' });
   }
 }
 

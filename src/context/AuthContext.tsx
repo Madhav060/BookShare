@@ -1,4 +1,4 @@
-// src/context/AuthContext.tsx - FIXED WITH PERSISTENCE
+// src/context/AuthContext.tsx - FIXED SESSION PERSISTENCE
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { setAuthToken } from '../utils/api';
@@ -34,11 +34,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedUser = localStorage.getItem('user');
         const storedToken = localStorage.getItem('token');
 
+        console.log('Loading auth state:', { 
+          hasUser: !!storedUser, 
+          hasToken: !!storedToken 
+        });
+
         if (storedUser && storedToken) {
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
           setToken(storedToken);
-          setAuthToken(storedToken); // Set token in API client
+          // CRITICAL: Set token in API client
+          setAuthToken(storedToken);
+          console.log('Auth state loaded successfully');
+        } else {
+          console.log('No stored auth state found');
         }
       } catch (error) {
         console.error('Error loading auth state:', error);
@@ -54,6 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (userData: User, sessionToken: string) => {
+    console.log('Logging in user:', userData.email);
+    
     // Save to state
     setUser(userData);
     setToken(sessionToken);
@@ -64,9 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Set token in API client
     setAuthToken(sessionToken);
+    
+    console.log('Login successful, token saved');
   };
 
   const logout = () => {
+    console.log('Logging out user');
+    
     // Clear state
     setUser(null);
     setToken(null);

@@ -1,4 +1,4 @@
-// src/types/index.ts - Phase 2 Updated Types
+// src/types/index.ts - UPDATED WITH PAYMENT & VERIFICATION FIELDS
 
 export interface User {
   id: number;
@@ -108,17 +108,24 @@ export interface DeliveryAgentProfile {
 export interface Delivery {
   id: number;
   borrowRequestId: number;
-  agentId?: number;
+  agentId?: number | null;
   pickupAddress: string;
   deliveryAddress: string;
   status: DeliveryStatus;
-  pickupScheduled?: Date;
-  pickupCompleted?: Date;
-  deliveryCompleted?: Date;
-  trackingNotes?: string;
+  pickupScheduled?: Date | null;
+  pickupCompleted?: Date | null;
+  deliveryCompleted?: Date | null;
+  trackingNotes?: string | null;
+  // ✅ NEW PAYMENT & VERIFICATION FIELDS
+  verificationCode?: string | null;
+  codeVerifiedAt?: Date | null;
+  paymentStatus: PaymentStatus;
+  paymentAmount?: number | null;
+  paymentId?: string | null;
+  // END NEW FIELDS
   createdAt: Date;
   updatedAt: Date;
-  agent?: UserBasic;
+  agent?: UserBasic | null;
   borrowRequest?: BorrowRequest;
 }
 
@@ -134,6 +141,9 @@ export type DeliveryStatus =
   | 'RETURN_DELIVERED'
   | 'COMPLETED'
   | 'CANCELLED';
+
+// ✅ NEW PAYMENT STATUS TYPE
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
 export interface Notification {
   id: number;

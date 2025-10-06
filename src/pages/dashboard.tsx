@@ -1,4 +1,4 @@
-// src/pages/dashboard.tsx
+// src/pages/dashboard.tsx - FIXED SESSION PERSISTENCE
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
@@ -39,17 +39,20 @@ interface Analytics {
 
 export default function Dashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { isAuthenticated, user } = useAuth();
+  const [dataLoading, setDataLoading] = useState(true);
+  const { isAuthenticated, user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+    
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
+    
     loadAnalytics();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, loading, router]);
 
   const loadAnalytics = async () => {
     try {
@@ -57,18 +60,21 @@ export default function Dashboard() {
       setAnalytics(res.data);
     } catch (err) {
       console.error('Error loading analytics:', err);
-      // If analytics endpoint doesn't exist, just skip it
       setAnalytics(null);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
+
+  if (loading) {
+    return <Layout><p>Loading...</p></Layout>;
+  }
 
   if (!isAuthenticated) {
     return null;
   }
 
-  if (loading) {
+  if (dataLoading) {
     return <Layout><p>Loading dashboard...</p></Layout>;
   }
 
