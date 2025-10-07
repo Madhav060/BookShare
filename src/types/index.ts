@@ -1,4 +1,6 @@
-// src/types/index.ts - UPDATED WITH PAYMENT & VERIFICATION FIELDS
+// ============================================
+// src/types/index.ts - UPDATED WITH POINTS SYSTEM
+// ============================================
 
 export interface User {
   id: number;
@@ -11,6 +13,7 @@ export interface User {
   rating: number;
   totalBorrows: number;
   totalLends: number;
+  points: number; // 🆕 Added Points Field
   createdAt: Date;
 }
 
@@ -19,6 +22,10 @@ export interface UserBasic {
   name: string;
   email: string;
 }
+
+// ============================================
+// BOOK & CATEGORY TYPES
+// ============================================
 
 export interface Book {
   id: number;
@@ -55,6 +62,10 @@ export interface BookCategory {
   category?: Category;
 }
 
+// ============================================
+// REVIEWS & RATINGS
+// ============================================
+
 export interface Review {
   id: number;
   bookId: number;
@@ -76,6 +87,10 @@ export interface UserRating {
   rater?: UserBasic;
 }
 
+// ============================================
+// BORROW REQUESTS
+// ============================================
+
 export interface BorrowRequest {
   id: number;
   bookId: number;
@@ -91,6 +106,10 @@ export interface RequestsResponse {
   incoming: BorrowRequest[];
   outgoing: BorrowRequest[];
 }
+
+// ============================================
+// DELIVERY AGENT & DELIVERY MODELS
+// ============================================
 
 export interface DeliveryAgentProfile {
   id: number;
@@ -145,6 +164,10 @@ export type DeliveryStatus =
 // ✅ NEW PAYMENT STATUS TYPE
 export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
 export interface Notification {
   id: number;
   userId: number;
@@ -166,6 +189,39 @@ export type NotificationType =
   | 'DELIVERY_DELIVERED'
   | 'NEW_REVIEW'
   | 'SYSTEM_MESSAGE';
+
+// ============================================
+// POINT SYSTEM (🆕 NEW ADDITIONS)
+// ============================================
+
+export interface PointTransaction {
+  id: number;
+  userId: number;
+  amount: number; // Positive for earning, negative for spending
+  type: 'BORROW' | 'LEND' | 'PURCHASE' | 'INITIAL' | 'REFUND';
+  description: string;
+  relatedId?: number | null; // BorrowRequest ID or Purchase ID
+  balanceAfter: number;
+  createdAt: Date;
+  user?: UserBasic;
+}
+
+export interface PointPurchase {
+  id: number;
+  userId: number;
+  points: number; // Points purchased
+  amount: number; // Amount paid in rupees
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  createdAt: Date;
+  completedAt?: Date | null;
+  user?: UserBasic;
+}
+
+// ============================================
+// FILTERS, PAGINATION, ANALYTICS
+// ============================================
 
 export interface SearchFilters {
   q?: string;

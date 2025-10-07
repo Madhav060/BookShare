@@ -1,10 +1,14 @@
+// ============================================
+// PRISMA CONFIG
+// ============================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://bookshare_user:mypassword@localhost:5432/bookshare_db"
 }
 
 // ============================================
@@ -17,25 +21,29 @@ model User {
   email                String                @unique
   password             String
   role                 Role                  @default(USER)
-  // 🆕 Phase 2: User Profile Fields
   bio                  String?
   avatar               String?
   location             String?
   rating               Float                 @default(5.0)
   totalBorrows         Int                   @default(0)
   totalLends           Int                   @default(0)
+  points               Int                   @default(100) // 🆕 Points System
   createdAt            DateTime              @default(now())
+  
   // Existing Relations
   ownedBooks           Book[]                @relation("OwnedBooks")
   heldBooks            Book[]                @relation("HeldBooks")
   requests             BorrowRequest[]       @relation("UserRequests")
-  // 🆕 Phase 2: New Relations
   deliveryAgentProfile DeliveryAgentProfile?
   assignedDeliveries   Delivery[]            @relation("DeliveryAgent")
   givenReviews         Review[]              @relation("ReviewAuthor")
   receivedRatings      UserRating[]          @relation("RatedUser")
   givenRatings         UserRating[]          @relation("RaterUser")
   notifications        Notification[]
+
+  // 🆕 New Relations
+  pointTransactions    PointTransaction[]
+  pointPurchases       PointPurchase[]
 }
 
 model DeliveryAgentProfile {
@@ -71,31 +79,28 @@ model UserRating {
 // ============================================
 
 model Book {
-  id           Int            @id @default(autoincrement())
-  title        String
-  author       String
-  status       BookStatus     @default(AVAILABLE)
-  isVisible    Boolean        @default(true)
-  deletedAt    DateTime?
-  // 🆕 Phase 2: Enhanced Book Fields
-  isbn         String?
-  description  String?
-  coverImage   String?
-  publishYear  Int?
-  language     String         @default("English")
-  pageCount    Int?
-  viewCount    Int            @default(0)
-  borrowCount  Int            @default(0)
-  createdAt    DateTime       @default(now())
-  // Existing Relations
-  owner        User           @relation("OwnedBooks", fields: [ownerId], references: [id])
-  ownerId      Int
-  holder       User           @relation("HeldBooks", fields: [userId], references: [id])
-  userId       Int
+  id             Int            @id @default(autoincrement())
+  title          String
+  author         String
+  status         BookStatus     @default(AVAILABLE)
+  isVisible      Boolean        @default(true)
+  deletedAt      DateTime?
+  isbn           String?
+  description    String?
+  coverImage     String?
+  publishYear    Int?
+  language       String         @default("English")
+  pageCount      Int?
+  viewCount      Int            @default(0)
+  borrowCount    Int            @default(0)
+  createdAt      DateTime       @default(now())
+  owner          User           @relation("OwnedBooks", fields: [ownerId], references: [id])
+  ownerId        Int
+  holder         User           @relation("HeldBooks", fields: [userId], references: [id])
+  userId         Int
   borrowRequests BorrowRequest[]
-  // 🆕 Phase 2: New Relations
-  categories   BookCategory[]
-  reviews      Review[]
+  categories     BookCategory[]
+  reviews        Review[]
 }
 
 model Category {
@@ -119,7 +124,7 @@ model Review {
   book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
   userId    Int
   user      User     @relation("ReviewAuthor", fields: [userId], references: [id])
-  rating    Int      // 1-5 stars
+  rating    Int
   comment   String?
   createdAt DateTime @default(now())
 
@@ -138,7 +143,6 @@ model BorrowRequest {
   bookId     Int
   borrower   User                @relation("UserRequests", fields: [borrowerId], references: [id])
   borrowerId Int
-  // 🆕 Phase 2: Delivery Relation
   delivery   Delivery?
 }
 
@@ -161,8 +165,6 @@ model Delivery {
   trackingNotes     String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
-  
-  // ✅ NEW FIELDS ADDED HERE
   verificationCode  String?
   codeVerifiedAt    DateTime?
   paymentStatus     PaymentStatus @default(PENDING)
@@ -184,6 +186,38 @@ model Notification {
   relatedId Int?
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
+}
+
+// ============================================
+// 🆕 POINT SYSTEM MODELS
+// ============================================
+
+model PointTransaction {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  amount       Int      // Positive for earning, negative for spending
+  type         String   // 'BORROW', 'LEND', 'PURCHASE', 'INITIAL', 'REFUND'
+  description  String
+  relatedId    Int?     // BorrowRequest ID or Purchase ID
+  balanceAfter Int      // User's balance after this transaction
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PointPurchase {
+  id                 Int       @id @default(autoincrement())
+  userId             Int
+  user               User      @relation(fields: [userId], references: [id])
+  points             Int       // Number of points purchased
+  amount             Float     // Amount paid in rupees
+  razorpayOrderId    String?
+  razorpayPaymentId  String?
+  status             String    @default("PENDING") // PENDING, COMPLETED, FAILED
+  createdAt          DateTime  @default(now())
+  completedAt        DateTime?
 }
 
 // ============================================
@@ -234,7 +268,6 @@ enum NotificationType {
   SYSTEM_MESSAGE
 }
 
-// ✅ NEW ENUM ADDED HERE
 enum PaymentStatus {
   PENDING
   COMPLETED

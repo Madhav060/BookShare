@@ -1,10 +1,8 @@
+// src/pages/api/delivery/create.ts - WITH VERIFICATION CODE
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
 
-function generateVerificationCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -20,6 +18,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
+    // Verify the borrow request exists and is accepted
     const borrowRequest = await prisma.borrowRequest.findUnique({
       where: { id: Number(borrowRequestId) },
       include: {
@@ -42,35 +41,31 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       });
     }
 
+    // IMPORTANT: Only the borrower can request delivery (not the owner)
     if (borrowRequest.borrowerId !== req.userId) {
       return res.status(403).json({ 
         error: 'Only the borrower can request delivery service' 
       });
     }
 
+    // Check if delivery already exists
     const existingDelivery = await prisma.delivery.findUnique({
       where: { borrowRequestId: Number(borrowRequestId) }
     });
 
     if (existingDelivery) {
       return res.status(400).json({ 
-        error: 'Delivery already exists for this borrow request',
-        delivery: existingDelivery
+        error: 'Delivery already exists for this borrow request' 
       });
     }
 
-    const verificationCode = generateVerificationCode();
-    const paymentAmount = 50;
-
+    // Create the delivery
     const delivery = await prisma.delivery.create({
       data: {
         borrowRequestId: Number(borrowRequestId),
         pickupAddress,
         deliveryAddress,
-        status: 'PENDING',
-        verificationCode,
-        paymentAmount,
-        paymentStatus: 'PENDING'
+        status: 'PENDING'
       },
       include: {
         borrowRequest: {
@@ -86,42 +81,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     });
 
-    // ✅ NOTIFY ALL DELIVERY AGENTS
-    const allAgents = await prisma.user.findMany({
-      where: { 
-        role: 'DELIVERY_AGENT',
-        deliveryAgentProfile: {
-          isAvailable: true
-        }
-      },
-      select: { id: true, name: true }
-    });
-
-    // Create notifications for all available agents
-    const notificationPromises = allAgents.map(agent =>
-      prisma.notification.create({
-        data: {
-          userId: agent.id,
-          type: 'DELIVERY_ASSIGNED',
-          title: '🚚 New Delivery Available',
-          message: `New delivery request for "${delivery.borrowRequest.book.title}". First to accept gets it!`,
-          relatedId: delivery.id
-        }
-      })
-    );
-
-    await Promise.all(notificationPromises);
-
     res.status(201).json({
-      message: 'Delivery request created successfully. All agents have been notified.',
-      delivery,
-      verificationCode,
-      paymentRequired: true,
-      paymentAmount,
-      agentsNotified: allAgents.length
+      message: 'Delivery request created successfully',
+      delivery
     });
   } catch (error: any) {
     console.error('Create delivery error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+export default withAuth(handler);

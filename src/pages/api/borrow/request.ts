@@ -1,8 +1,10 @@
-// src/pages/api/borrow/request.ts - UPDATED WITH NOTIFICATIONS
+// src/pages/api/borrow/request.ts - UPDATED WITH POINTS CHECK
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
 import { notifyBorrowRequest } from '../../../lib/notifications';
+
+const POINTS_REQUIRED = 20;
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -16,6 +18,26 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
+    // Get user's current points
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { points: true, name: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // ✅ CHECK: Does user have enough points?
+    if (user.points < POINTS_REQUIRED) {
+      return res.status(400).json({ 
+        error: `Insufficient points! You need ${POINTS_REQUIRED} points to borrow a book. Your balance: ${user.points} points.`,
+        requiredPoints: POINTS_REQUIRED,
+        currentPoints: user.points,
+        needToBuy: POINTS_REQUIRED - user.points
+      });
+    }
+
     // Check if book exists and is available
     const book = await prisma.book.findUnique({
       where: { id: Number(bookId) },
@@ -61,7 +83,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     });
 
-    // Create borrow request
+    // Create borrow request (points will be deducted when owner accepts)
     const borrowRequest = await prisma.borrowRequest.create({
       data: {
         bookId: Number(bookId),
@@ -85,12 +107,28 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // Send notification to book owner
     await notifyBorrowRequest(
       book.ownerId,
-      req.user!.name,
+      user.name,
       book.title,
       borrowRequest.id
     );
 
-    res.status(201).json(borrowRequest);
+    // Send notification to borrower about points
+    await prisma.notification.create({
+      data: {
+        userId: req.userId!,
+        type: 'SYSTEM_MESSAGE',
+        title: '📖 Borrow Request Sent',
+        message: `Your request for "${book.title}" has been sent. If approved, ${POINTS_REQUIRED} points will be deducted from your account.`
+      }
+    });
+
+    res.status(201).json({
+      ...borrowRequest,
+      pointsWillBeDeducted: POINTS_REQUIRED,
+      currentBalance: user.points,
+      balanceAfterApproval: user.points - POINTS_REQUIRED
+    });
+
   } catch (error: any) {
     console.error('Create borrow request error:', error);
     res.status(500).json({ error: 'Internal server error' });
