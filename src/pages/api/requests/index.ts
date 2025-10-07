@@ -1,4 +1,4 @@
-// src/pages/api/requests/index.ts
+// src/pages/api/requests/index.ts - UPDATED TO ALWAYS LOAD DELIVERY
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../middleware/auth';
@@ -29,6 +29,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         },
         borrower: {
           select: { id: true, name: true, email: true }
+        },
+        // ✅ ALWAYS include delivery information
+        delivery: {
+          select: {
+            id: true,
+            status: true,
+            paymentStatus: true,
+            verificationCode: true,
+            codeVerifiedAt: true,
+            pickupAddress: true,
+            deliveryAddress: true,
+            createdAt: true,
+            updatedAt: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -52,6 +66,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         },
         borrower: {
           select: { id: true, name: true, email: true }
+        },
+        // ✅ ALWAYS include delivery information
+        delivery: {
+          select: {
+            id: true,
+            status: true,
+            paymentStatus: true,
+            verificationCode: true,
+            codeVerifiedAt: true,
+            pickupAddress: true,
+            deliveryAddress: true,
+            createdAt: true,
+            updatedAt: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
