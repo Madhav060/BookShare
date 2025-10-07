@@ -1,25 +1,22 @@
-// src/pages/api/delivery/[id]/assign.ts - COMPLETE & FIXED
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../../middleware/auth';
-import { notifyDeliveryAssigned } from '../../../../lib/notifications';
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+async function assignHandler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'PATCH') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { id } = req.query;
 
-  // Check if user is a delivery agent
-  if (req.user?.role !== 'DELIVERY_AGENT') {
+  if (req.user?.role !== 'DELIVERY_AGENT' && req.user?.role !== 'ADMIN') {
     return res.status(403).json({ 
       error: 'Access denied. Delivery agent role required.' 
     });
   }
 
   try {
-    // Find the delivery
+    // ✅ FIRST CHECK IF ALREADY ASSIGNED (RACE CONDITION PROTECTION)
     const delivery = await prisma.delivery.findUnique({
       where: { id: Number(id) },
       include: {
@@ -32,7 +29,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
               }
             }
           }
-        }
+        },
+        agent: { select: { id: true, name: true } }
       }
     });
 
@@ -42,19 +40,24 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     if (delivery.status !== 'PENDING') {
       return res.status(400).json({ 
-        error: 'This delivery has already been assigned' 
+        error: 'This delivery has already been assigned or completed',
+        assignedTo: delivery.agent?.name || 'Another agent'
       });
     }
 
     if (delivery.agentId !== null) {
       return res.status(400).json({ 
-        error: 'This delivery is already assigned to another agent' 
+        error: `Sorry! This delivery was just assigned to ${delivery.agent?.name}. Try another one.`,
+        assignedTo: delivery.agent?.name
       });
     }
 
-    // Assign the delivery to the agent
+    // ✅ ASSIGN TO THIS AGENT (ATOMIC OPERATION)
     const updatedDelivery = await prisma.delivery.update({
-      where: { id: Number(id) },
+      where: { 
+        id: Number(id),
+        agentId: null // Double-check it's still unassigned
+      },
       data: {
         agentId: req.userId,
         status: 'ASSIGNED'
@@ -74,31 +77,43 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     });
 
-    // Send notifications to borrower and owner
-    try {
-      await notifyDeliveryAssigned(
-        delivery.borrowRequest.borrowerId,
-        req.user!.name,
-        updatedDelivery.id
-      );
-      await notifyDeliveryAssigned(
-        delivery.borrowRequest.book.ownerId,
-        req.user!.name,
-        updatedDelivery.id
-      );
-    } catch (notifError) {
-      console.error('Error sending notifications:', notifError);
-      // Don't fail the request if notifications fail
-    }
+    // ✅ NOTIFY BORROWER ABOUT AGENT ASSIGNMENT
+    await prisma.notification.create({
+      data: {
+        userId: delivery.borrowRequest.borrowerId,
+        type: 'DELIVERY_ASSIGNED',
+        title: '🚚 Delivery Agent Assigned',
+        message: `${req.user!.name} will deliver "${delivery.borrowRequest.book.title}". Please complete payment to proceed.`,
+        relatedId: updatedDelivery.id
+      }
+    });
+
+    // ✅ DELETE NOTIFICATIONS FOR OTHER AGENTS
+    await prisma.notification.deleteMany({
+      where: {
+        relatedId: Number(id),
+        type: 'DELIVERY_ASSIGNED',
+        userId: { not: req.userId }
+      }
+    });
 
     res.json({
-      message: 'Delivery assigned successfully',
+      success: true,
+      message: 'Delivery assigned successfully! Wait for payment confirmation.',
       delivery: updatedDelivery
     });
   } catch (error: any) {
     console.error('Assign delivery error:', error);
+    
+    // Handle race condition - delivery was assigned to someone else
+    if (error.code === 'P2025') {
+      return res.status(409).json({ 
+        error: 'This delivery was just assigned to another agent. Please try another delivery.' 
+      });
+    }
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-export default withAuth(handler);
+export default withAuth(assignHandler);

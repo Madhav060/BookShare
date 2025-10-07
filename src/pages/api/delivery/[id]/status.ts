@@ -1,10 +1,8 @@
-// src/pages/api/delivery/[id]/status.ts - UPDATE STATUS WITH VALIDATION
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../../middleware/auth';
-import { notifyDeliveryPickedUp, notifyDeliveryCompleted } from '../../../../lib/notifications';
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+async function statusHandler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'PATCH') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -17,12 +15,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   const validStatuses = [
-    'PICKUP_SCHEDULED',
     'PICKED_UP',
     'IN_TRANSIT',
     'DELIVERED',
-    'COMPLETED',
-    'CANCELLED'
+    'COMPLETED'
   ];
 
   if (!validStatuses.includes(status)) {
@@ -33,7 +29,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    // Find the delivery
     const delivery = await prisma.delivery.findUnique({
       where: { id: Number(id) },
       include: {
@@ -50,24 +45,24 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    // Check if user is the assigned agent
     if (delivery.agentId !== req.userId) {
       return res.status(403).json({ 
         error: 'Only the assigned agent can update delivery status' 
       });
     }
 
-    // Check if payment is completed
+    // ✅ CHECK PAYMENT
     if (delivery.paymentStatus !== 'COMPLETED') {
       return res.status(400).json({ 
         error: 'Cannot update status until payment is completed' 
       });
     }
 
-    // Check if code is verified for pickup/transit statuses
-    if (['PICKED_UP', 'IN_TRANSIT'].includes(status) && !delivery.codeVerifiedAt) {
+    // ✅ CHECK CODE VERIFICATION FOR PICKUP/TRANSIT/DELIVERED
+    if (['PICKED_UP', 'IN_TRANSIT', 'DELIVERED'].includes(status) && !delivery.codeVerifiedAt) {
       return res.status(400).json({ 
-        error: 'Verification code must be validated before pickup' 
+        error: 'Verification code must be validated before proceeding with delivery',
+        nextStep: 'Ask borrower for the 6-digit code and verify it first'
       });
     }
 
@@ -77,14 +72,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       trackingNotes: trackingNotes || delivery.trackingNotes
     };
 
-    // Set timestamps based on status
+    // Set timestamps
     if (status === 'PICKED_UP' && !delivery.pickupCompleted) {
       updateData.pickupCompleted = new Date();
     } else if (status === 'DELIVERED' && !delivery.deliveryCompleted) {
       updateData.deliveryCompleted = new Date();
     }
 
-    // Update delivery
     const updatedDelivery = await prisma.delivery.update({
       where: { id: Number(id) },
       data: updateData,
@@ -99,27 +93,35 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     });
 
-    // Send notifications based on status
-    try {
-      if (status === 'PICKED_UP') {
-        await notifyDeliveryPickedUp(
-          delivery.borrowRequest.borrowerId,
-          delivery.borrowRequest.book.title,
-          delivery.id
-        );
-      } else if (status === 'DELIVERED') {
-        await notifyDeliveryCompleted(
-          delivery.borrowRequest.borrowerId,
-          delivery.borrowRequest.book.title,
-          delivery.id
-        );
-      }
-    } catch (notifError) {
-      console.error('Error sending notifications:', notifError);
-      // Don't fail the request if notifications fail
+    // ✅ SEND NOTIFICATIONS
+    let notificationTitle = '';
+    let notificationMessage = '';
+
+    if (status === 'PICKED_UP') {
+      notificationTitle = '📦 Book Picked Up';
+      notificationMessage = `${req.user!.name} has picked up "${delivery.borrowRequest.book.title}" and it's on the way!`;
+    } else if (status === 'IN_TRANSIT') {
+      notificationTitle = '🚚 In Transit';
+      notificationMessage = `Your book "${delivery.borrowRequest.book.title}" is on the way!`;
+    } else if (status === 'DELIVERED') {
+      notificationTitle = '✅ Book Delivered';
+      notificationMessage = `"${delivery.borrowRequest.book.title}" has been delivered successfully!`;
+    }
+
+    if (notificationTitle) {
+      await prisma.notification.create({
+        data: {
+          userId: delivery.borrowRequest.borrowerId,
+          type: 'DELIVERY_DELIVERED',
+          title: notificationTitle,
+          message: notificationMessage,
+          relatedId: delivery.id
+        }
+      });
     }
 
     res.json({
+      success: true,
       message: 'Status updated successfully',
       delivery: updatedDelivery
     });
@@ -129,4 +131,4 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuth(handler);
+export default withAuth(statusHandler);

@@ -1,5 +1,6 @@
-// src/components/NotificationBell.tsx
+// src/components/NotificationBell.tsx - ENHANCED WITH FASTER POLLING
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import api from '../utils/api';
 import { Notification } from '../types';
 
@@ -9,16 +10,17 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     loadNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(loadNotifications, 30000);
+    
+    // ✅ POLL EVERY 5 SECONDS FOR REAL-TIME UPDATES (AGENTS)
+    const interval = setInterval(loadNotifications, 5000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    // Close dropdown when clicking outside
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
@@ -47,6 +49,25 @@ export default function NotificationBell() {
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
       console.error('Error marking notification as read:', err);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read
+    if (!notification.isRead) {
+      await markAsRead(notification.id);
+    }
+
+    // Navigate based on notification type
+    if (notification.type === 'DELIVERY_ASSIGNED' && notification.relatedId) {
+      setIsOpen(false);
+      router.push('/agent/dashboard');
+    } else if (notification.type === 'DELIVERY_PICKED_UP' && notification.relatedId) {
+      setIsOpen(false);
+      router.push(`/delivery/track/${notification.relatedId}`);
+    } else if (notification.type === 'BORROW_REQUEST' && notification.relatedId) {
+      setIsOpen(false);
+      router.push('/requests');
     }
   };
 
@@ -79,31 +100,38 @@ export default function NotificationBell() {
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'relative',
-          background: 'transparent',
-          border: 'none',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
           color: 'white',
           cursor: 'pointer',
-          fontSize: '24px',
-          padding: '5px 10px'
+          fontSize: '1.25rem',
+          padding: '0.5rem 0.75rem',
+          borderRadius: 'var(--radius-md)',
+          backdropFilter: 'blur(10px)',
+          transition: 'var(--transition)'
         }}
+        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
       >
         🔔
         {unreadCount > 0 && (
           <span
             style={{
               position: 'absolute',
-              top: '0',
-              right: '0',
-              background: '#e74c3c',
+              top: '-5px',
+              right: '-5px',
+              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
               color: 'white',
               borderRadius: '50%',
-              width: '20px',
-              height: '20px',
-              fontSize: '12px',
+              width: '22px',
+              height: '22px',
+              fontSize: '0.75rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 'bold'
+              fontWeight: '700',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              animation: 'pulse 2s infinite'
             }}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -115,75 +143,129 @@ export default function NotificationBell() {
         <div
           style={{
             position: 'absolute',
-            top: '100%',
+            top: 'calc(100% + 10px)',
             right: '0',
-            marginTop: '10px',
-            width: '350px',
-            maxHeight: '500px',
+            width: '400px',
+            maxHeight: '600px',
             background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            border: '1px solid var(--gray-200)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-xl)',
             overflowY: 'auto',
             zIndex: 1000
           }}
         >
+          {/* Header */}
           <div
             style={{
-              padding: '15px',
-              borderBottom: '1px solid #ddd',
-              fontWeight: 'bold',
-              color: '#2c3e50',
+              padding: '1.25rem',
+              borderBottom: '1px solid var(--gray-200)',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              borderTopLeftRadius: 'var(--radius-lg)',
+              borderTopRightRadius: 'var(--radius-lg)'
+            }}
+          >
+            <div style={{ 
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center'
-            }}
-          >
-            <span>Notifications</span>
-            {unreadCount > 0 && (
-              <span style={{ fontSize: '12px', color: '#7f8c8d' }}>
-                {unreadCount} unread
+            }}>
+              <span style={{ fontWeight: '700', fontSize: '1.125rem' }}>
+                Notifications
               </span>
-            )}
+              {unreadCount > 0 && (
+                <span style={{ 
+                  fontSize: '0.875rem',
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '9999px',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
           </div>
 
+          {/* Notifications List */}
           {notifications.length === 0 ? (
-            <div style={{ padding: '40px 20px', textAlign: 'center', color: '#95a5a6' }}>
-              No notifications yet
+            <div style={{ 
+              padding: '3rem 2rem', 
+              textAlign: 'center', 
+              color: 'var(--gray-500)' 
+            }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔔</div>
+              <p>No notifications yet</p>
             </div>
           ) : (
             notifications.map((notification) => (
               <div
                 key={notification.id}
-                onClick={() => !notification.isRead && markAsRead(notification.id)}
+                onClick={() => handleNotificationClick(notification)}
                 style={{
-                  padding: '15px',
-                  borderBottom: '1px solid #f0f0f0',
-                  cursor: notification.isRead ? 'default' : 'pointer',
-                  background: notification.isRead ? 'white' : '#e3f2fd',
-                  transition: 'background 0.2s'
+                  padding: '1rem 1.25rem',
+                  borderBottom: '1px solid var(--gray-100)',
+                  cursor: 'pointer',
+                  background: notification.isRead ? 'white' : 'var(--gray-50)',
+                  transition: 'var(--transition)',
+                  position: 'relative'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-100)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = notification.isRead ? 'white' : 'var(--gray-50)'}
               >
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <div style={{ fontSize: '24px' }}>
+                {!notification.isRead && (
+                  <div style={{
+                    position: 'absolute',
+                    left: '0.5rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: 'var(--primary)'
+                  }} />
+                )}
+                
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem',
+                  paddingLeft: notification.isRead ? '0' : '1rem'
+                }}>
+                  <div style={{ 
+                    fontSize: '1.75rem',
+                    flexShrink: 0
+                  }}>
                     {getNotificationIcon(notification.type)}
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontWeight: notification.isRead ? 'normal' : 'bold',
-                        color: '#2c3e50',
-                        marginBottom: '5px',
-                        fontSize: '14px'
+                        fontWeight: notification.isRead ? '500' : '700',
+                        color: 'var(--gray-900)',
+                        marginBottom: '0.25rem',
+                        fontSize: '0.9375rem'
                       }}
                     >
                       {notification.title}
                     </div>
-                    <div style={{ color: '#7f8c8d', fontSize: '13px', marginBottom: '5px' }}>
+                    <div style={{ 
+                      color: 'var(--gray-600)', 
+                      fontSize: '0.875rem',
+                      marginBottom: '0.5rem',
+                      lineHeight: 1.4
+                    }}>
                       {notification.message}
                     </div>
-                    <div style={{ color: '#95a5a6', fontSize: '11px' }}>
-                      {getTimeAgo(notification.createdAt)}
+                    <div style={{ 
+                      color: 'var(--gray-500)', 
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <span>🕐</span>
+                      <span>{getTimeAgo(notification.createdAt)}</span>
                     </div>
                   </div>
                 </div>
@@ -191,28 +273,43 @@ export default function NotificationBell() {
             ))
           )}
 
+          {/* Footer */}
           {notifications.length > 0 && (
             <div
               style={{
-                padding: '10px',
+                padding: '1rem',
                 textAlign: 'center',
-                borderTop: '1px solid #ddd'
+                borderTop: '1px solid var(--gray-200)',
+                background: 'var(--gray-50)'
               }}
             >
               <a
                 href="/notifications"
                 style={{
-                  color: '#3498db',
+                  color: 'var(--primary)',
                   textDecoration: 'none',
-                  fontSize: '13px'
+                  fontSize: '0.875rem',
+                  fontWeight: '600'
                 }}
+                onClick={() => setIsOpen(false)}
               >
-                View all notifications
+                View all notifications →
               </a>
             </div>
           )}
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+        }
+      `}</style>
     </div>
   );
 }

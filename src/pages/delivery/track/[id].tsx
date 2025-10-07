@@ -1,4 +1,4 @@
-// src/pages/delivery/track/[id].tsx
+// src/pages/delivery/track/[id].tsx - Modern Enhanced UI
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../../utils/api';
@@ -21,7 +21,6 @@ export default function TrackDelivery() {
     }
     if (id) {
       loadDelivery();
-      // Auto-refresh every 30 seconds
       const interval = setInterval(loadDelivery, 30000);
       return () => clearInterval(interval);
     }
@@ -40,32 +39,25 @@ export default function TrackDelivery() {
   };
 
   const getStatusInfo = (status: string) => {
-    const statusMap: { [key: string]: { icon: string; color: string; label: string } } = {
-      PENDING: { icon: '⏳', color: '#f39c12', label: 'Waiting for Agent' },
-      ASSIGNED: { icon: '👤', color: '#3498db', label: 'Agent Assigned' },
-      PICKUP_SCHEDULED: { icon: '📅', color: '#9b59b6', label: 'Pickup Scheduled' },
-      PICKED_UP: { icon: '📦', color: '#1abc9c', label: 'Picked Up' },
-      IN_TRANSIT: { icon: '🚚', color: '#e67e22', label: 'In Transit' },
-      DELIVERED: { icon: '✅', color: '#27ae60', label: 'Delivered' },
-      RETURN_SCHEDULED: { icon: '🔄', color: '#9b59b6', label: 'Return Scheduled' },
-      RETURN_PICKED_UP: { icon: '📦', color: '#1abc9c', label: 'Return Picked Up' },
-      RETURN_DELIVERED: { icon: '✅', color: '#27ae60', label: 'Returned' },
-      COMPLETED: { icon: '✓', color: '#95a5a6', label: 'Completed' },
-      CANCELLED: { icon: '✗', color: '#e74c3c', label: 'Cancelled' }
+    const statusMap: { [key: string]: { icon: string; color: string; label: string; gradient: string } } = {
+      PENDING: { icon: '⏳', color: '#f59e0b', label: 'Waiting for Agent', gradient: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' },
+      ASSIGNED: { icon: '👤', color: '#3b82f6', label: 'Agent Assigned', gradient: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)' },
+      PICKED_UP: { icon: '📦', color: '#8b5cf6', label: 'Picked Up', gradient: 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)' },
+      IN_TRANSIT: { icon: '🚚', color: '#06b6d4', label: 'In Transit', gradient: 'linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%)' },
+      DELIVERED: { icon: '✅', color: '#10b981', label: 'Delivered', gradient: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)' },
+      COMPLETED: { icon: '✓', color: '#6b7280', label: 'Completed', gradient: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' }
     };
-    return statusMap[status] || { icon: '❓', color: '#95a5a6', label: status };
+    return statusMap[status] || { icon: '❓', color: '#6b7280', label: status, gradient: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' };
   };
 
   const getProgressPercentage = (status: string) => {
     const progressMap: { [key: string]: number } = {
-      PENDING: 10,
-      ASSIGNED: 20,
-      PICKUP_SCHEDULED: 30,
+      PENDING: 15,
+      ASSIGNED: 30,
       PICKED_UP: 50,
-      IN_TRANSIT: 70,
+      IN_TRANSIT: 75,
       DELIVERED: 90,
-      COMPLETED: 100,
-      CANCELLED: 0
+      COMPLETED: 100
     };
     return progressMap[status] || 0;
   };
@@ -73,35 +65,39 @@ export default function TrackDelivery() {
   if (!isAuthenticated) return null;
 
   if (loading) {
-    return <Layout><p>Loading delivery information...</p></Layout>;
+    return (
+      <Layout>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          minHeight: '400px'
+        }}>
+          <div className="spinner"></div>
+        </div>
+      </Layout>
+    );
   }
 
   if (error || !delivery) {
     return (
       <Layout>
-        <div style={{ maxWidth: '800px', margin: '50px auto', textAlign: 'center' }}>
-          <div style={{
-            padding: '40px',
-            background: '#ffebee',
-            borderRadius: '8px',
-            color: '#c62828'
-          }}>
-            <h2>❌ {error || 'Delivery not found'}</h2>
-            <button
-              onClick={() => router.push('/requests')}
-              style={{
-                marginTop: '20px',
-                padding: '10px 20px',
-                background: '#3498db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Back to Requests
-            </button>
-          </div>
+        <div className="card" style={{ 
+          maxWidth: '600px', 
+          margin: '3rem auto', 
+          padding: '3rem',
+          textAlign: 'center' 
+        }}>
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>❌</div>
+          <h2 style={{ color: 'var(--error)', marginBottom: '1rem' }}>
+            {error || 'Delivery not found'}
+          </h2>
+          <button
+            onClick={() => router.push('/requests')}
+            className="btn btn-primary"
+          >
+            Back to Requests
+          </button>
         </div>
       </Layout>
     );
@@ -112,115 +108,144 @@ export default function TrackDelivery() {
 
   return (
     <Layout>
-      <div style={{ maxWidth: '900px', margin: '50px auto' }}>
-        <h1>📦 Track Your Delivery</h1>
-
-        {/* Book Info */}
-        <div style={{
-          padding: '20px',
-          background: 'white',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          marginBottom: '30px'
-        }}>
-          <h2 style={{ marginTop: 0 }}>
-            {delivery.borrowRequest?.book?.title ?? 'Unknown Title'}
-          </h2>
-          <p style={{ color: '#7f8c8d', margin: '5px 0' }}>
-            by {delivery.borrowRequest?.book?.author ?? 'Unknown Author'}
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h1 style={{ marginBottom: '0.5rem' }}>📦 Track Your Delivery</h1>
+          <p style={{ color: 'var(--gray-600)' }}>
+            Delivery ID: #{delivery.id} • Last updated: {new Date(delivery.updatedAt).toLocaleString()}
           </p>
         </div>
 
-        {/* Current Status */}
-        <div style={{
-          padding: '30px',
-          background: statusInfo.color,
+        {/* Current Status Card */}
+        <div className="card" style={{ 
+          background: statusInfo.gradient,
           color: 'white',
-          borderRadius: '8px',
+          padding: '3rem',
           textAlign: 'center',
-          marginBottom: '30px'
+          marginBottom: '2rem'
         }}>
-          <div style={{ fontSize: '48px', marginBottom: '10px' }}>
+          <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>
             {statusInfo.icon}
           </div>
-          <h2 style={{ margin: '0 0 10px 0' }}>{statusInfo.label}</h2>
-          <p style={{ margin: 0, opacity: 0.9 }}>
-            Last updated: {new Date(delivery.updatedAt).toLocaleString()}
+          <h2 style={{ 
+            color: 'white', 
+            fontSize: '2rem',
+            marginBottom: '0.5rem'
+          }}>
+            {statusInfo.label}
+          </h2>
+          <p style={{ 
+            fontSize: '1.125rem',
+            color: 'rgba(255,255,255,0.9)'
+          }}>
+            {delivery.borrowRequest?.book?.title ?? 'Unknown Title'}
           </p>
         </div>
 
         {/* Progress Bar */}
-        <div style={{ marginBottom: '30px' }}>
+        <div className="card" style={{ padding: '2rem', marginBottom: '2rem' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Delivery Progress</h3>
           <div style={{
             width: '100%',
-            height: '30px',
-            background: '#ecf0f1',
-            borderRadius: '15px',
-            overflow: 'hidden'
+            height: '12px',
+            background: 'var(--gray-200)',
+            borderRadius: '9999px',
+            overflow: 'hidden',
+            position: 'relative'
           }}>
             <div style={{
               width: `${progress}%`,
               height: '100%',
-              background: 'linear-gradient(90deg, #3498db, #27ae60)',
+              background: statusInfo.gradient,
               transition: 'width 0.5s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              paddingRight: '10px',
-              color: 'white',
-              fontWeight: 'bold',
-              fontSize: '14px'
+              borderRadius: '9999px'
             }}>
-              {progress > 10 && `${progress}%`}
+              <div style={{
+                position: 'absolute',
+                right: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: progress > 50 ? 'white' : 'var(--gray-700)',
+                fontWeight: '700',
+                fontSize: '0.75rem'
+              }}>
+                {progress}%
+              </div>
             </div>
           </div>
         </div>
 
         {/* Details Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '20px',
-          marginBottom: '30px'
-        }}>
-          {/* Addresses */}
-          <div style={{
-            padding: '20px',
-            background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '8px'
-          }}>
-            <h3 style={{ marginTop: 0, color: '#2c3e50' }}>📍 Addresses</h3>
-            <div style={{ marginBottom: '15px' }}>
-              <strong style={{ color: '#7f8c8d' }}>Pickup:</strong>
-              <p style={{ margin: '5px 0' }}>{delivery.pickupAddress}</p>
+        <div className="grid grid-cols-2" style={{ marginBottom: '2rem' }}>
+          {/* Addresses Card */}
+          <div className="card">
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>📍</span> Addresses
+            </h3>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div className="label">Pickup Location</div>
+              <p style={{ margin: 0 }}>{delivery.pickupAddress}</p>
             </div>
             <div>
-              <strong style={{ color: '#7f8c8d' }}>Delivery:</strong>
-              <p style={{ margin: '5px 0' }}>{delivery.deliveryAddress}</p>
+              <div className="label">Delivery Location</div>
+              <p style={{ margin: 0 }}>{delivery.deliveryAddress}</p>
             </div>
           </div>
 
-          {/* Parties Involved */}
-          <div style={{
-            padding: '20px',
-            background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '8px'
-          }}>
-            <h3 style={{ marginTop: 0, color: '#2c3e50' }}>👥 People</h3>
-            <div style={{ marginBottom: '10px' }}>
-              <strong style={{ color: '#7f8c8d' }}>Owner:</strong>
-              <p style={{ margin: '5px 0' }}>{delivery.borrowRequest?.book.owner?.name ?? 'Unknown Owner'}</p>
+          {/* People Card */}
+          <div className="card">
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>👥</span> People Involved
+            </h3>
+            <div style={{ marginBottom: '1rem' }}>
+              <div className="label">Book Owner</div>
+              <p style={{ margin: 0 }}>{delivery.borrowRequest?.book.owner?.name ?? 'Unknown Owner'}</p>
             </div>
-            <div style={{ marginBottom: '10px' }}>
-              <strong style={{ color: '#7f8c8d' }}>Borrower:</strong>
-              <p style={{ margin: '5px 0' }}>{delivery.borrowRequest?.borrower?.name}</p>
+            <div style={{ marginBottom: '1rem' }}>
+              <div className="label">Borrower</div>
+              <p style={{ margin: 0 }}>{delivery.borrowRequest?.borrower?.name}</p>
             </div>
             {delivery.agent && (
               <div>
-                <strong style={{ color: '#7f8c8d' }}>Agent:</strong>
-                <p style={{ margin: '5px 0' }}>{delivery.agent.name}</p>
+                <div className="label">Delivery Agent</div>
+                <div style={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem',
+                  background: 'var(--gray-50)',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontWeight: '700'
+                  }}>
+                    {delivery.agent.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: '600' }}>{delivery.agent.name}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -228,32 +253,27 @@ export default function TrackDelivery() {
 
         {/* Tracking Notes */}
         {delivery.trackingNotes && (
-          <div style={{
-            padding: '20px',
-            background: '#e8f5e9',
-            borderLeft: '4px solid #27ae60',
-            borderRadius: '4px',
-            marginBottom: '30px'
-          }}>
-            <h3 style={{ marginTop: 0, color: '#2c3e50' }}>📝 Tracking Notes</h3>
-            <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{delivery.trackingNotes}</p>
+          <div className="alert alert-info">
+            <span style={{ fontSize: '1.5rem' }}>📝</span>
+            <div>
+              <strong>Tracking Notes</strong>
+              <p style={{ margin: '0.5rem 0 0 0' }}>{delivery.trackingNotes}</p>
+            </div>
           </div>
         )}
 
         {/* Timeline */}
-        <div style={{
-          padding: '20px',
-          background: 'white',
-          border: '1px solid #ddd',
-          borderRadius: '8px'
-        }}>
-          <h3 style={{ marginTop: 0, color: '#2c3e50' }}>⏱️ Timeline</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div className="card" style={{ padding: '2rem' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '2rem' }}>
+            ⏱️ Delivery Timeline
+          </h3>
+          <div style={{ position: 'relative' }}>
             <TimelineItem
               date={delivery.createdAt}
               title="Delivery Requested"
               icon="📋"
               completed={true}
+              isLast={false}
             />
             {delivery.pickupScheduled && (
               <TimelineItem
@@ -261,6 +281,7 @@ export default function TrackDelivery() {
                 title="Pickup Scheduled"
                 icon="📅"
                 completed={true}
+                isLast={false}
               />
             )}
             {delivery.pickupCompleted && (
@@ -269,6 +290,7 @@ export default function TrackDelivery() {
                 title="Pickup Completed"
                 icon="📦"
                 completed={true}
+                isLast={false}
               />
             )}
             {delivery.deliveryCompleted && (
@@ -277,68 +299,116 @@ export default function TrackDelivery() {
                 title="Delivery Completed"
                 icon="✅"
                 completed={true}
+                isLast={true}
               />
             )}
           </div>
         </div>
 
-        {/* Refresh Button */}
-        <div style={{ marginTop: '30px', textAlign: 'center' }}>
+        {/* Action Buttons */}
+        <div style={{ 
+          marginTop: '2rem',
+          display: 'flex',
+          gap: '1rem',
+          justifyContent: 'center'
+        }}>
           <button
             onClick={loadDelivery}
-            style={{
-              padding: '12px 30px',
-              background: '#3498db',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
+            className="btn btn-primary"
           >
-            🔄 Refresh Status
+            <span>🔄</span>
+            <span>Refresh Status</span>
           </button>
-          <p style={{ marginTop: '10px', fontSize: '12px', color: '#95a5a6' }}>
-            Auto-refreshes every 30 seconds
-          </p>
+          <button
+            onClick={() => router.push('/requests')}
+            className="btn btn-outline"
+          >
+            <span>←</span>
+            <span>Back to Requests</span>
+          </button>
         </div>
+
+        <p style={{ 
+          textAlign: 'center',
+          marginTop: '1rem',
+          fontSize: '0.875rem',
+          color: 'var(--gray-500)'
+        }}>
+          ⏰ Auto-refreshes every 30 seconds
+        </p>
       </div>
     </Layout>
   );
 }
 
-function TimelineItem({ date, title, icon, completed }: {
+function TimelineItem({ 
+  date, 
+  title, 
+  icon, 
+  completed,
+  isLast 
+}: {
   date: Date;
   title: string;
   icon: string;
   completed: boolean;
+  isLast: boolean;
 }) {
   return (
     <div style={{
       display: 'flex',
-      alignItems: 'flex-start',
-      gap: '15px',
-      opacity: completed ? 1 : 0.5
+      gap: '1.5rem',
+      marginBottom: isLast ? 0 : '2rem',
+      position: 'relative'
     }}>
+      {/* Timeline Line */}
+      {!isLast && (
+        <div style={{
+          position: 'absolute',
+          left: '20px',
+          top: '50px',
+          bottom: '-30px',
+          width: '2px',
+          background: completed ? 'var(--success)' : 'var(--gray-300)'
+        }} />
+      )}
+
+      {/* Icon Circle */}
       <div style={{
         width: '40px',
         height: '40px',
         borderRadius: '50%',
-        background: completed ? '#27ae60' : '#ecf0f1',
+        background: completed 
+          ? 'linear-gradient(135deg, #34d399 0%, #10b981 100%)'
+          : 'var(--gray-200)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '20px',
-        flexShrink: 0
+        fontSize: '1.25rem',
+        flexShrink: 0,
+        boxShadow: completed ? 'var(--shadow-md)' : 'none',
+        zIndex: 1
       }}>
         {icon}
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 'bold', color: '#2c3e50' }}>{title}</div>
-        <div style={{ fontSize: '12px', color: '#7f8c8d', marginTop: '3px' }}>
+
+      {/* Content */}
+      <div style={{ flex: 1, paddingTop: '0.25rem' }}>
+        <h4 style={{ 
+          margin: 0,
+          marginBottom: '0.25rem',
+          color: completed ? 'var(--gray-900)' : 'var(--gray-500)',
+          fontWeight: completed ? '600' : '500'
+        }}>
+          {title}
+        </h4>
+        <p style={{ 
+          margin: 0,
+          fontSize: '0.875rem',
+          color: 'var(--gray-500)'
+        }}>
           {new Date(date).toLocaleString()}
-        </div>
+        </p>
       </div>
     </div>
   );

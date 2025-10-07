@@ -1,4 +1,4 @@
-// src/pages/agent/dashboard.tsx - FIXED SESSION PERSISTENCE WITH PAYMENT & VERIFICATION
+// src/pages/agent/dashboard.tsx - ENHANCED WITH REAL-TIME UPDATES
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
@@ -30,10 +30,13 @@ export default function AgentDashboard() {
     }
     
     loadDeliveries();
+    
+    // ✅ AUTO-REFRESH EVERY 10 SECONDS FOR REAL-TIME UPDATES
+    const interval = setInterval(loadDeliveries, 10000);
+    return () => clearInterval(interval);
   }, [isAuthenticated, user, loading, router]);
 
   const loadDeliveries = async () => {
-    setDataLoading(true);
     try {
       const [availableRes, myRes] = await Promise.all([
         api.get('/delivery/available'),
@@ -53,11 +56,17 @@ export default function AgentDashboard() {
     
     setProcessing(deliveryId);
     try {
-      await api.patch(`/delivery/${deliveryId}/assign`);
-      alert('Delivery assigned successfully! Wait for payment before proceeding.');
-      await loadDeliveries();
+      const res = await api.patch(`/delivery/${deliveryId}/assign`);
+      
+      if (res.data.success) {
+        alert('✅ ' + res.data.message);
+        await loadDeliveries();
+        setActiveTab('my'); // Switch to My Deliveries tab
+      }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to assign delivery');
+      const errorMsg = err.response?.data?.error || 'Failed to assign delivery';
+      alert('❌ ' + errorMsg);
+      await loadDeliveries(); // Refresh to show updated status
     } finally {
       setProcessing(null);
     }
@@ -66,24 +75,24 @@ export default function AgentDashboard() {
   const handleVerify = async (deliveryId: number) => {
     if (processing) return;
 
-    const code = prompt('Enter the 6-digit verification code from the borrower:');
+    const code = prompt('🔐 Enter the 6-digit verification code from the borrower:');
     
     if (!code) return;
 
     if (code.length !== 6 || !/^\d+$/.test(code)) {
-      alert('Invalid code format. Code must be 6 digits.');
+      alert('❌ Invalid code format. Code must be 6 digits.');
       return;
     }
 
     setProcessing(deliveryId);
     try {
-      await api.post(`/delivery/${deliveryId}/verify`, {
+      const res = await api.post(`/delivery/${deliveryId}/verify`, {
         verificationCode: code
       });
-      alert('✅ Code verified! You can now pick up the book.');
+      alert('✅ ' + res.data.message);
       await loadDeliveries();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Invalid verification code');
+      alert('❌ ' + (err.response?.data?.error || 'Invalid verification code'));
     } finally {
       setProcessing(null);
     }
@@ -92,18 +101,18 @@ export default function AgentDashboard() {
   const handleUpdateStatus = async (deliveryId: number, newStatus: string) => {
     if (processing) return;
 
-    const notes = prompt('Add tracking notes (optional):');
+    const notes = prompt('📝 Add tracking notes (optional):');
     
     setProcessing(deliveryId);
     try {
-      await api.patch(`/delivery/${deliveryId}/status`, {
+      const res = await api.patch(`/delivery/${deliveryId}/status`, {
         status: newStatus,
         trackingNotes: notes || undefined
       });
-      alert('Status updated successfully!');
+      alert('✅ Status updated successfully!');
       await loadDeliveries();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update status');
+      alert('❌ ' + (err.response?.data?.error || 'Failed to update status'));
     } finally {
       setProcessing(null);
     }
@@ -111,59 +120,23 @@ export default function AgentDashboard() {
 
   const getStatusColor = (status: string) => {
     const colors: { [key: string]: string } = {
-      'PENDING': '#f39c12',
-      'ASSIGNED': '#3498db',
-      'PICKED_UP': '#9b59b6',
-      'IN_TRANSIT': '#1abc9c',
-      'DELIVERED': '#27ae60',
-      'COMPLETED': '#95a5a6'
+      'PENDING': '#f59e0b',
+      'ASSIGNED': '#3b82f6',
+      'PICKED_UP': '#8b5cf6',
+      'IN_TRANSIT': '#06b6d4',
+      'DELIVERED': '#10b981',
+      'COMPLETED': '#6b7280'
     };
-    return colors[status] || '#95a5a6';
+    return colors[status] || '#6b7280';
   };
 
   const getPaymentStatusBadge = (delivery: Delivery) => {
     if (delivery.paymentStatus === 'COMPLETED') {
-      return (
-        <div style={{
-          padding: '5px 10px',
-          background: '#27ae60',
-          color: 'white',
-          borderRadius: '4px',
-          fontSize: '12px',
-          fontWeight: 'bold',
-          display: 'inline-block'
-        }}>
-          ✓ Paid
-        </div>
-      );
+      return <span className="badge badge-success">✓ Paid</span>;
     } else if (delivery.paymentStatus === 'PENDING') {
-      return (
-        <div style={{
-          padding: '5px 10px',
-          background: '#f39c12',
-          color: 'white',
-          borderRadius: '4px',
-          fontSize: '12px',
-          fontWeight: 'bold',
-          display: 'inline-block'
-        }}>
-          ⏳ Payment Pending
-        </div>
-      );
+      return <span className="badge badge-warning">⏳ Payment Pending</span>;
     } else if (delivery.paymentStatus === 'FAILED') {
-      return (
-        <div style={{
-          padding: '5px 10px',
-          background: '#e74c3c',
-          color: 'white',
-          borderRadius: '4px',
-          fontSize: '12px',
-          fontWeight: 'bold',
-          display: 'inline-block'
-        }}>
-          ✗ Payment Failed
-        </div>
-      );
+      return <span className="badge badge-error">✗ Payment Failed</span>;
     }
     return null;
   };
@@ -196,59 +169,106 @@ export default function AgentDashboard() {
     return [];
   };
 
-  if (loading) {
-    return <Layout><p>Loading...</p></Layout>;
+  if (loading || dataLoading) {
+    return (
+      <Layout>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          minHeight: '400px'
+        }}>
+          <div className="spinner"></div>
+        </div>
+      </Layout>
+    );
   }
 
   if (!isAuthenticated || (user?.role !== 'DELIVERY_AGENT' && user?.role !== 'ADMIN')) {
     return null;
   }
 
-  if (dataLoading) {
-    return <Layout><p>Loading deliveries...</p></Layout>;
-  }
-
   return (
     <Layout>
       <div>
-        <h1>🚚 Delivery Agent Dashboard</h1>
+        {/* Header */}
+        <div className="card" style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          padding: '2rem',
+          marginBottom: '2rem'
+        }}>
+          <h1 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>
+            🚚 Delivery Agent Dashboard
+          </h1>
+          <p style={{ margin: 0, fontSize: '1.125rem', opacity: 0.9 }}>
+            Accept deliveries, verify codes, and earn money
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3" style={{ marginBottom: '2rem' }}>
+          <div className="card" style={{ 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            color: 'white'
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📦</div>
+            <div style={{ fontSize: '2rem', fontWeight: '700' }}>
+              {availableDeliveries.length}
+            </div>
+            <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>
+              Available Deliveries
+            </div>
+          </div>
+          <div className="card" style={{ 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            color: 'white'
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🚚</div>
+            <div style={{ fontSize: '2rem', fontWeight: '700' }}>
+              {myDeliveries.length}
+            </div>
+            <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>
+              My Deliveries
+            </div>
+          </div>
+          <div className="card" style={{ 
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            color: 'white'
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>💰</div>
+            <div style={{ fontSize: '2rem', fontWeight: '700' }}>
+              ₹{myDeliveries.reduce((sum, d) => sum + (d.paymentAmount || 0), 0)}
+            </div>
+            <div style={{ fontSize: '0.875rem', opacity: 0.9 }}>
+              Total Earnings
+            </div>
+          </div>
+        </div>
 
         {/* Tabs */}
         <div style={{ 
           display: 'flex', 
-          gap: '10px', 
-          marginBottom: '30px', 
-          borderBottom: '2px solid #ddd' 
+          gap: '1rem', 
+          marginBottom: '2rem',
+          borderBottom: '2px solid var(--gray-200)'
         }}>
           <button
             onClick={() => setActiveTab('available')}
-            style={{
-              padding: '10px 20px',
-              background: activeTab === 'available' ? '#3498db' : 'transparent',
-              color: activeTab === 'available' ? 'white' : '#333',
-              border: 'none',
-              borderBottom: activeTab === 'available' ? '3px solid #2980b9' : 'none',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: activeTab === 'available' ? 'bold' : 'normal'
-            }}
+            className={`btn ${activeTab === 'available' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ borderRadius: '0', borderBottom: 'none' }}
           >
-            Available Deliveries ({availableDeliveries.length})
+            🔔 Available ({availableDeliveries.length})
           </button>
           <button
             onClick={() => setActiveTab('my')}
-            style={{
-              padding: '10px 20px',
-              background: activeTab === 'my' ? '#3498db' : 'transparent',
-              color: activeTab === 'my' ? 'white' : '#333',
-              border: 'none',
-              borderBottom: activeTab === 'my' ? '3px solid #2980b9' : 'none',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: activeTab === 'my' ? 'bold' : 'normal'
-            }}
+            className={`btn ${activeTab === 'my' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ borderRadius: '0', borderBottom: 'none' }}
           >
-            My Deliveries ({myDeliveries.length})
+            🚚 My Deliveries ({myDeliveries.length})
           </button>
         </div>
 
@@ -256,62 +276,67 @@ export default function AgentDashboard() {
         {activeTab === 'available' && (
           <div>
             {availableDeliveries.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', background: '#f8f9fa', borderRadius: '8px' }}>
-                <p>No available deliveries at the moment.</p>
+              <div className="card" style={{ 
+                padding: '4rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📭</div>
+                <h2>No Available Deliveries</h2>
+                <p style={{ color: 'var(--gray-600)' }}>
+                  New delivery requests will appear here. Auto-refreshes every 10 seconds.
+                </p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div className="grid grid-cols-1" style={{ gap: '1.5rem' }}>
                 {availableDeliveries.map((delivery) => (
-                  <div key={delivery.id} style={{
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    padding: '20px',
-                    background: 'white'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                  <div key={delivery.id} className="card">
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between',
+                      marginBottom: '1rem'
+                    }}>
                       <div>
-                        <h3 style={{ margin: '0 0 10px 0' }}>
-                          Delivery Request #{delivery.id}
+                        <h3 style={{ margin: '0 0 0.5rem 0' }}>
+                          📦 Delivery Request #{delivery.id}
                         </h3>
-                        <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
-                          Book: {delivery.borrowRequest?.book?.title || 'N/A'}
+                        <p style={{ margin: 0, color: 'var(--gray-600)' }}>
+                          <strong>Book:</strong> {delivery.borrowRequest?.book?.title || 'N/A'}
                         </p>
-                        <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
-                          Delivery Fee: ₹{delivery.paymentAmount || 50}
+                        <p style={{ margin: '0.25rem 0 0 0', color: 'var(--gray-600)' }}>
+                          <strong>Fee:</strong> ₹{delivery.paymentAmount || 50}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{
-                          padding: '5px 15px',
-                          borderRadius: '20px',
+                        <span className="badge" style={{ 
                           background: getStatusColor(delivery.status),
-                          color: 'white',
-                          fontWeight: 'bold',
-                          fontSize: '12px',
-                          marginBottom: '10px'
+                          color: 'white'
                         }}>
                           {delivery.status}
+                        </span>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          {getPaymentStatusBadge(delivery)}
                         </div>
-                        {getPaymentStatusBadge(delivery)}
                       </div>
                     </div>
 
-                    <div style={{ marginBottom: '10px' }}>
-                      <strong>📍 Pickup:</strong> {delivery.pickupAddress}
-                    </div>
-                    <div style={{ marginBottom: '15px' }}>
-                      <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
+                    <div style={{ 
+                      padding: '1rem',
+                      background: 'var(--gray-50)',
+                      borderRadius: 'var(--radius-md)',
+                      marginBottom: '1rem'
+                    }}>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <strong>📍 Pickup:</strong> {delivery.pickupAddress}
+                      </div>
+                      <div>
+                        <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
+                      </div>
                     </div>
 
                     {delivery.paymentStatus === 'PENDING' && (
-                      <div style={{
-                        padding: '12px',
-                        background: '#fff3cd',
-                        borderRadius: '4px',
-                        marginBottom: '15px',
-                        fontSize: '14px'
-                      }}>
-                        ⏳ Waiting for borrower to complete payment...
+                      <div className="alert alert-warning">
+                        <span>⏳</span>
+                        <span>Waiting for borrower to complete payment...</span>
                       </div>
                     )}
 
@@ -319,18 +344,24 @@ export default function AgentDashboard() {
                       <button
                         onClick={() => handleAssign(delivery.id)}
                         disabled={processing === delivery.id}
-                        style={{
-                          padding: '10px 20px',
-                          background: '#27ae60',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: processing === delivery.id ? 'not-allowed' : 'pointer',
-                          opacity: processing === delivery.id ? 0.7 : 1,
-                          fontWeight: 'bold'
-                        }}
+                        className="btn btn-secondary"
+                        style={{ width: '100%' }}
                       >
-                        {processing === delivery.id ? 'Assigning...' : 'Accept Delivery'}
+                        {processing === delivery.id ? (
+                          <>
+                            <div className="spinner" style={{ 
+                              width: '20px', 
+                              height: '20px',
+                              borderWidth: '2px'
+                            }}></div>
+                            <span>Accepting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>✓</span>
+                            <span>Accept This Delivery</span>
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
@@ -344,105 +375,103 @@ export default function AgentDashboard() {
         {activeTab === 'my' && (
           <div>
             {myDeliveries.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', background: '#f8f9fa', borderRadius: '8px' }}>
-                <p>You don't have any assigned deliveries yet.</p>
+              <div className="card" style={{ 
+                padding: '4rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🚚</div>
+                <h2>No Assigned Deliveries</h2>
+                <p style={{ color: 'var(--gray-600)' }}>
+                  Accept available deliveries to see them here.
+                </p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div className="grid grid-cols-1" style={{ gap: '1.5rem' }}>
                 {myDeliveries.map((delivery) => (
-                  <div key={delivery.id} style={{
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    padding: '20px',
-                    background: 'white'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                  <div key={delivery.id} className="card">
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between',
+                      marginBottom: '1rem'
+                    }}>
                       <div>
-                        <h3 style={{ margin: '0 0 10px 0' }}>
+                        <h3 style={{ margin: '0 0 0.5rem 0' }}>
                           Delivery #{delivery.id}
                         </h3>
-                        <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
-                          Book: {delivery.borrowRequest?.book?.title || 'N/A'}
+                        <p style={{ margin: 0, color: 'var(--gray-600)' }}>
+                          <strong>Book:</strong> {delivery.borrowRequest?.book?.title || 'N/A'}
                         </p>
-                        <p style={{ margin: '5px 0', color: '#7f8c8d', fontSize: '14px' }}>
-                          Fee: ₹{delivery.paymentAmount || 50}
+                        <p style={{ margin: '0.25rem 0 0 0', color: 'var(--gray-600)' }}>
+                          <strong>Fee:</strong> ₹{delivery.paymentAmount || 50}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{
-                          padding: '5px 15px',
-                          borderRadius: '20px',
+                        <span className="badge" style={{ 
                           background: getStatusColor(delivery.status),
                           color: 'white',
-                          fontWeight: 'bold',
-                          fontSize: '12px',
-                          marginBottom: '5px'
+                          marginBottom: '0.5rem'
                         }}>
                           {delivery.status}
-                        </div>
+                        </span>
+                        <div>{getPaymentStatusBadge(delivery)}</div>
                         {delivery.codeVerifiedAt && (
-                          <div style={{
-                            padding: '3px 8px',
-                            background: '#27ae60',
-                            color: 'white',
-                            borderRadius: '3px',
-                            fontSize: '10px',
-                            marginTop: '5px'
-                          }}>
-                            ✓ Verified
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <span className="badge badge-success">✓ Verified</span>
                           </div>
                         )}
-                        <div style={{ marginTop: '5px' }}>
-                          {getPaymentStatusBadge(delivery)}
-                        </div>
                       </div>
                     </div>
 
-                    <div style={{ marginBottom: '10px' }}>
-                      <strong>📍 Pickup:</strong> {delivery.pickupAddress}
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                      <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
+                    <div style={{ 
+                      padding: '1rem',
+                      background: 'var(--gray-50)',
+                      borderRadius: 'var(--radius-md)',
+                      marginBottom: '1rem'
+                    }}>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <strong>📍 Pickup:</strong> {delivery.pickupAddress}
+                      </div>
+                      <div>
+                        <strong>📍 Delivery:</strong> {delivery.deliveryAddress}
+                      </div>
                     </div>
 
                     {delivery.trackingNotes && (
-                      <div style={{ 
-                        padding: '10px', 
-                        background: '#e8f5e9', 
-                        borderRadius: '4px',
-                        marginBottom: '15px',
-                        fontSize: '14px'
-                      }}>
-                        <strong>Notes:</strong> {delivery.trackingNotes}
+                      <div className="alert alert-info">
+                        <span>📝</span>
+                        <div>
+                          <strong>Notes:</strong>
+                          <p style={{ margin: '0.5rem 0 0 0' }}>{delivery.trackingNotes}</p>
+                        </div>
                       </div>
                     )}
 
                     {delivery.paymentStatus !== 'COMPLETED' && (
-                      <div style={{ 
-                        padding: '12px', 
-                        background: '#ffebee', 
-                        borderRadius: '4px',
-                        marginBottom: '15px',
-                        color: '#c62828'
-                      }}>
-                        ⚠️ <strong>Payment not completed.</strong> Wait for borrower to pay before proceeding.
+                      <div className="alert alert-error">
+                        <span>⚠️</span>
+                        <span><strong>Payment not completed.</strong> Wait for borrower to pay.</span>
                       </div>
                     )}
 
                     {!delivery.codeVerifiedAt && delivery.status === 'ASSIGNED' && delivery.paymentStatus === 'COMPLETED' && (
-                      <div style={{ 
-                        padding: '12px', 
-                        background: '#fff3cd', 
-                        borderRadius: '4px',
-                        marginBottom: '15px',
-                        color: '#856404'
-                      }}>
-                        ⚠️ <strong>Action Required:</strong> Ask the borrower for the 6-digit verification code before pickup.
+                      <div className="alert alert-warning">
+                        <span>🔐</span>
+                        <div>
+                          <strong>Action Required:</strong>
+                          <p style={{ margin: '0.5rem 0 0 0' }}>
+                            Ask the borrower for their 6-digit verification code before pickup.
+                          </p>
+                        </div>
                       </div>
                     )}
 
                     {getNextActions(delivery).length > 0 && (
-                      <div style={{ display: 'flex', gap: '10px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '1rem',
+                        paddingTop: '1rem',
+                        borderTop: '1px solid var(--gray-200)'
+                      }}>
                         {getNextActions(delivery).map((action) => (
                           <button
                             key={action.value}
@@ -452,16 +481,8 @@ export default function AgentDashboard() {
                                 : handleUpdateStatus(delivery.id, action.value)
                             }
                             disabled={processing === delivery.id}
-                            style={{
-                              padding: '10px 20px',
-                              background: action.type === 'verify' ? '#f39c12' : '#3498db',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: processing === delivery.id ? 'not-allowed' : 'pointer',
-                              opacity: processing === delivery.id ? 0.7 : 1,
-                              fontWeight: 'bold'
-                            }}
+                            className={`btn ${action.type === 'verify' ? 'btn-secondary' : 'btn-primary'}`}
+                            style={{ flex: 1 }}
                           >
                             {action.label}
                           </button>
@@ -474,6 +495,16 @@ export default function AgentDashboard() {
             )}
           </div>
         )}
+
+        {/* Auto-refresh indicator */}
+        <p style={{ 
+          textAlign: 'center',
+          marginTop: '2rem',
+          color: 'var(--gray-500)',
+          fontSize: '0.875rem'
+        }}>
+          ⏰ Auto-refreshing every 10 seconds
+        </p>
       </div>
     </Layout>
   );

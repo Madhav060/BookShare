@@ -1,9 +1,8 @@
-// src/pages/api/delivery/[id]/verify.ts
 import { NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { withAuth, AuthenticatedRequest } from '../../../../middleware/auth';
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+async function verifyHandler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -16,7 +15,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    // Find the delivery
     const delivery = await prisma.delivery.findUnique({
       where: { id: Number(id) },
       include: {
@@ -33,28 +31,34 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    // Check if user is the assigned agent
     if (delivery.agentId !== req.userId) {
       return res.status(403).json({ 
         error: 'Only the assigned agent can verify delivery' 
       });
     }
 
-    // Check if already verified
+    // ✅ CHECK PAYMENT STATUS
+    if (delivery.paymentStatus !== 'COMPLETED') {
+      return res.status(400).json({ 
+        error: 'Payment must be completed before verification'
+      });
+    }
+
     if (delivery.codeVerifiedAt) {
       return res.status(400).json({ 
-        error: 'Delivery code already verified' 
+        error: 'Code already verified',
+        verifiedAt: delivery.codeVerifiedAt
       });
     }
 
-    // Verify the code
-    if (delivery.verificationCode !== verificationCode.toString()) {
+    // ✅ VERIFY THE CODE
+    if (delivery.verificationCode !== verificationCode.trim()) {
       return res.status(400).json({ 
-        error: 'Invalid verification code' 
+        error: 'Invalid verification code. Please check with the borrower.' 
       });
     }
 
-    // Update delivery as verified
+    // ✅ MARK AS VERIFIED
     const updatedDelivery = await prisma.delivery.update({
       where: { id: Number(id) },
       data: {
@@ -71,10 +75,22 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     });
 
+    // ✅ NOTIFY BORROWER
+    await prisma.notification.create({
+      data: {
+        userId: delivery.borrowRequest.borrowerId,
+        type: 'DELIVERY_PICKED_UP',
+        title: '✓ Code Verified',
+        message: `Your verification code was confirmed. ${req.user!.name} is picking up "${delivery.borrowRequest.book.title}".`,
+        relatedId: delivery.id
+      }
+    });
+
     res.json({
-      message: 'Verification successful! You can now proceed with pickup.',
+      success: true,
+      message: '✅ Code verified! You can now proceed with pickup.',
       delivery: updatedDelivery,
-      verified: true
+      nextStep: 'Update status to PICKED_UP after collecting the book'
     });
   } catch (error: any) {
     console.error('Verify delivery error:', error);
@@ -82,4 +98,4 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuth(handler);
+export default withAuth(verifyHandler);

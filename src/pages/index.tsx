@@ -1,4 +1,4 @@
-// src/pages/index.tsx - FULLY UPDATED
+// src/pages/index.tsx - Modern Enhanced UI
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Layout from "../components/Layout";
@@ -63,36 +63,57 @@ export default function Home() {
   return (
     <Layout>
       <div>
-        <h1>📖 Browse Books</h1>
-        <p style={{ color: "#666", marginBottom: "20px" }}>
-          Discover and borrow books from our community
-        </p>
-
-        {/* Search Bar */}
-        <SearchBar onSearch={handleSearch} />
+        {/* Hero Section */}
+        <div style={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: 'var(--radius-xl)',
+          padding: '3rem 2rem',
+          marginBottom: '3rem',
+          color: 'white',
+          textAlign: 'center',
+          boxShadow: 'var(--shadow-xl)'
+        }}>
+          <h1 style={{ 
+            color: 'white', 
+            fontSize: '3rem', 
+            marginBottom: '1rem',
+            textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}>
+            📖 Discover Amazing Books
+          </h1>
+          <p style={{ 
+            fontSize: '1.25rem', 
+            color: 'rgba(255,255,255,0.9)',
+            maxWidth: '600px',
+            margin: '0 auto 2rem'
+          }}>
+            Borrow, lend, and share books with our community
+          </p>
+          <SearchBar onSearch={handleSearch} />
+        </div>
 
         {/* Filters */}
         <div style={{ 
-          display: 'flex', 
-          gap: '15px', 
-          marginBottom: '30px',
+          background: 'white',
+          padding: '1.5rem',
+          borderRadius: 'var(--radius-lg)',
+          marginBottom: '2rem',
+          display: 'flex',
+          gap: '1rem',
           flexWrap: 'wrap',
-          alignItems: 'center'
+          alignItems: 'center',
+          boxShadow: 'var(--shadow)'
         }}>
-          <div>
-            <label style={{ marginRight: '10px', fontWeight: 'bold' }}>Category:</label>
+          <div style={{ flex: '1', minWidth: '200px' }}>
+            <label className="label">Category</label>
             <select
               value={selectedCategory}
               onChange={(e) => {
                 setSelectedCategory(e.target.value);
                 setPage(1);
               }}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
+              className="input"
+              style={{ padding: '0.625rem 1rem' }}
             >
               <option value="">All Categories</option>
               {categories.map((cat) => (
@@ -101,20 +122,16 @@ export default function Home() {
             </select>
           </div>
 
-          <div>
-            <label style={{ marginRight: '10px', fontWeight: 'bold' }}>Sort by:</label>
+          <div style={{ flex: '1', minWidth: '200px' }}>
+            <label className="label">Sort by</label>
             <select
               value={sortBy}
               onChange={(e) => {
                 setSortBy(e.target.value);
                 setPage(1);
               }}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
+              className="input"
+              style={{ padding: '0.625rem 1rem' }}
             >
               <option value="recent">Most Recent</option>
               <option value="popular">Most Popular</option>
@@ -129,15 +146,8 @@ export default function Home() {
                 setSelectedCategory('');
                 setPage(1);
               }}
-              style={{
-                padding: '8px 15px',
-                background: '#e74c3c',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
+              className="btn btn-outline"
+              style={{ alignSelf: 'flex-end' }}
             >
               Clear Filters
             </button>
@@ -146,144 +156,40 @@ export default function Home() {
 
         {/* Results Count */}
         {router.query.q && (
-          <p style={{ marginBottom: '20px', color: '#7f8c8d' }}>
+          <div className="alert alert-info mb-3">
             Search results for "<strong>{router.query.q}</strong>"
-          </p>
+          </div>
         )}
 
+        {/* Books Grid */}
         {loading ? (
-          <p>Loading books...</p>
-        ) : books.length === 0 ? (
           <div style={{ 
-            padding: '60px 20px', 
-            textAlign: 'center', 
-            background: '#f8f9fa', 
-            borderRadius: '8px' 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            minHeight: '400px'
           }}>
-            <p style={{ fontSize: '18px', color: '#7f8c8d' }}>
-              No books found. {router.query.q ? 'Try a different search term.' : 'Be the first to add one!'}
+            <div className="spinner"></div>
+          </div>
+        ) : books.length === 0 ? (
+          <div className="card" style={{ 
+            padding: '4rem 2rem', 
+            textAlign: 'center' 
+          }}>
+            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>📚</div>
+            <h2 style={{ marginBottom: '1rem' }}>No books found</h2>
+            <p style={{ color: 'var(--gray-600)', marginBottom: '2rem' }}>
+              {router.query.q ? 'Try a different search term.' : 'Be the first to add one!'}
             </p>
-            {/* THIS IS THE CORRECTED LINK */}
-            <Link 
-              href="/add-book"
-              style={{
-                display: 'inline-block',
-                marginTop: '15px',
-                padding: '10px 20px',
-                background: '#3498db',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '4px'
-              }}
-            >
-              Add a Book
+            <Link href="/add-book" className="btn btn-primary btn-lg">
+              <span>➕</span> Add a Book
             </Link>
           </div>
         ) : (
           <>
-            {/* Books Grid */}
-            <div style={{ 
-              display: "grid", 
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", 
-              gap: "20px",
-              marginBottom: "30px"
-            }}>
+            <div className="grid grid-cols-4" style={{ marginBottom: '3rem' }}>
               {books.map((book) => (
-                <div
-                  key={book.id}
-                  style={{
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    padding: "20px",
-                    background: "white",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                    transition: "transform 0.2s, box-shadow 0.2s",
-                    cursor: "pointer"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-5px)';
-                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                  }}
-                >
-                  {book.coverImage && (
-                    <div style={{
-                      width: '100%',
-                      height: '200px',
-                      background: `url(${book.coverImage}) center/cover`,
-                      borderRadius: '4px',
-                      marginBottom: '15px'
-                    }} />
-                  )}
-                  <h3 style={{ marginTop: 0, color: "#2c3e50" }}>{book.title}</h3>
-                  <p style={{ color: "#7f8c8d", fontSize: "14px", marginBottom: '10px' }}>
-                    by {book.author}
-                  </p>
-                  
-                  {book.categories && book.categories.length > 0 && (
-                    <div style={{ marginBottom: '10px' }}>
-                      {book.categories.slice(0, 2).map((bc) => (
-                        <span
-                          key={bc.categoryId}
-                          style={{
-                            display: 'inline-block',
-                            padding: '3px 8px',
-                            background: '#e3f2fd',
-                            color: '#1976d2',
-                            fontSize: '11px',
-                            borderRadius: '3px',
-                            marginRight: '5px',
-                            marginBottom: '5px'
-                          }}
-                        >
-                          {bc.category?.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <p style={{ fontSize: "12px", color: "#95a5a6", marginBottom: '10px' }}>
-                    Owner: {book.owner?.name}
-                  </p>
-
-                  {(book as any).averageRating > 0 && (
-                    <div style={{ marginBottom: '10px', fontSize: '14px' }}>
-                      {'⭐'.repeat(Math.round((book as any).averageRating))}
-                      <span style={{ marginLeft: '5px', color: '#7f8c8d' }}>
-                        ({(book as any).averageRating})
-                      </span>
-                    </div>
-                  )}
-
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginTop: '15px'
-                  }}>
-                    <div style={{ fontSize: '11px', color: '#95a5a6' }}>
-                      👁️ {book.viewCount} views
-                    </div>
-                    <Link 
-                      href={`/books/${book.id}`}
-                      style={{
-                        display: "inline-block",
-                        padding: "8px 16px",
-                        background: "#3498db",
-                        color: "white",
-                        textDecoration: "none",
-                        borderRadius: "4px",
-                        fontSize: "14px",
-                        fontWeight: "bold"
-                      }}
-                    >
-                      View Details
-                    </Link>
-                  </div>
-                </div>
+                <BookCard key={book.id} book={book} />
               ))}
             </div>
 
@@ -292,31 +198,23 @@ export default function Home() {
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'center', 
-                gap: '10px',
-                marginTop: '30px'
+                gap: '0.5rem',
+                alignItems: 'center'
               }}>
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  style={{
-                    padding: '10px 20px',
-                    background: page === 1 ? '#ddd' : '#3498db',
-                    color: page === 1 ? '#999' : 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: page === 1 ? 'not-allowed' : 'pointer',
-                    fontWeight: 'bold'
-                  }}
+                  className="btn btn-outline"
                 >
-                  Previous
+                  ← Previous
                 </button>
 
                 <div style={{ 
-                  padding: '10px 20px',
-                  background: '#f8f9fa',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center'
+                  padding: '0.75rem 1.5rem',
+                  background: 'white',
+                  borderRadius: 'var(--radius-md)',
+                  fontWeight: '600',
+                  boxShadow: 'var(--shadow)'
                 }}>
                   Page {page} of {totalPages}
                 </div>
@@ -324,17 +222,9 @@ export default function Home() {
                 <button
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  style={{
-                    padding: '10px 20px',
-                    background: page === totalPages ? '#ddd' : '#3498db',
-                    color: page === totalPages ? '#999' : 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: page === totalPages ? 'not-allowed' : 'pointer',
-                    fontWeight: 'bold'
-                  }}
+                  className="btn btn-outline"
                 >
-                  Next
+                  Next →
                 </button>
               </div>
             )}
@@ -342,5 +232,131 @@ export default function Home() {
         )}
       </div>
     </Layout>
+  );
+}
+
+function BookCard({ book }: { book: Book & { averageRating?: number } }) {
+  return (
+    <Link 
+      href={`/books/${book.id}`}
+      style={{ textDecoration: 'none', color: 'inherit' }}
+    >
+      <div className="card" style={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        cursor: 'pointer',
+        overflow: 'hidden',
+        padding: 0
+      }}>
+        {/* Book Cover */}
+        <div style={{
+          width: '100%',
+          height: '250px',
+          background: book.coverImage 
+            ? `url(${book.coverImage}) center/cover`
+            : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: '4rem',
+          position: 'relative'
+        }}>
+          {!book.coverImage && '📖'}
+          
+          {/* Status Badge */}
+          <div style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem'
+          }}>
+            <span className={book.status === 'AVAILABLE' ? 'badge badge-success' : 'badge badge-warning'}>
+              {book.status === 'AVAILABLE' ? '✓ Available' : '📤 Borrowed'}
+            </span>
+          </div>
+        </div>
+
+        {/* Card Content */}
+        <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ 
+            marginTop: 0,
+            marginBottom: '0.5rem',
+            fontSize: '1.125rem',
+            color: 'var(--gray-900)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical'
+          }}>
+            {book.title}
+          </h3>
+          
+          <p style={{ 
+            color: 'var(--gray-600)',
+            fontSize: '0.875rem',
+            marginBottom: '1rem'
+          }}>
+            by {book.author}
+          </p>
+
+          {/* Categories */}
+          {book.categories && book.categories.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              {book.categories.slice(0, 2).map((bc) => (
+                <span
+                  key={bc.categoryId}
+                  style={{
+                    display: 'inline-block',
+                    padding: '0.25rem 0.625rem',
+                    background: 'var(--gray-100)',
+                    color: 'var(--gray-700)',
+                    fontSize: '0.75rem',
+                    borderRadius: 'var(--radius-sm)',
+                    marginRight: '0.5rem',
+                    marginBottom: '0.5rem',
+                    fontWeight: '500'
+                  }}
+                >
+                  {bc.category?.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Rating */}
+          {book.averageRating && book.averageRating > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>
+                {'⭐'.repeat(Math.round(book.averageRating))}
+              </span>
+              <span style={{ 
+                marginLeft: '0.5rem',
+                color: 'var(--gray-600)',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}>
+                {book.averageRating.toFixed(1)}
+              </span>
+            </div>
+          )}
+
+          <div style={{ 
+            marginTop: 'auto',
+            paddingTop: '1rem',
+            borderTop: '1px solid var(--gray-200)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '0.75rem',
+            color: 'var(--gray-500)'
+          }}>
+            <span>👁️ {book.viewCount} views</span>
+            <span>📖 {book.borrowCount} borrows</span>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
