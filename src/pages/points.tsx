@@ -1,4 +1,4 @@
-// src/pages/points.tsx - GAMIFICATION POINTS PAGE
+// src/pages/points.tsx - FIXED RAZORPAY LOADING ISSUE
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Script from 'next/script';
@@ -47,6 +47,14 @@ export default function PointsPage() {
   const [purchasingPackage, setPurchasingPackage] = useState<number | null>(null);
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  // ✅ FIX: Check if Razorpay is already loaded on mount (from cache)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      console.log('Razorpay already loaded from cache');
+      setRazorpayLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -173,7 +181,11 @@ export default function PointsPage() {
     <>
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
-        onLoad={() => setRazorpayLoaded(true)}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log('Razorpay script loaded');
+          setRazorpayLoaded(true);
+        }}
         onError={() => console.error('Failed to load Razorpay')}
       />
 

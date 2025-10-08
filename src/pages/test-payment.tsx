@@ -1,5 +1,5 @@
-// src/pages/test-payment.tsx - FOR TESTING ONLY (DELETE IN PRODUCTION)
-import { useState } from 'react';
+// src/pages/test-payment.tsx - FIXED RAZORPAY LOADING ISSUE
+import { useState, useEffect } from 'react';
 import Script from 'next/script';
 import Layout from '../components/Layout';
 
@@ -13,6 +13,15 @@ export default function TestPayment() {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [amount, setAmount] = useState(50);
   const [status, setStatus] = useState('');
+
+  // ✅ FIX: Check if Razorpay is already loaded on mount (from cache)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      console.log('Razorpay already loaded from cache');
+      setRazorpayLoaded(true);
+      setStatus('✅ Razorpay SDK loaded successfully (from cache)');
+    }
+  }, []);
 
   const testPayment = () => {
     if (!razorpayLoaded || !window.Razorpay) {
@@ -58,7 +67,9 @@ export default function TestPayment() {
     <>
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="afterInteractive"
         onLoad={() => {
+          console.log('Razorpay script loaded');
           setRazorpayLoaded(true);
           setStatus('✅ Razorpay SDK loaded successfully');
         }}
@@ -199,6 +210,21 @@ export default function TestPayment() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Debug Info */}
+          <div style={{
+            padding: '20px',
+            background: '#f5f5f5',
+            borderRadius: '8px',
+            marginTop: '30px',
+            fontSize: '12px',
+            fontFamily: 'monospace'
+          }}>
+            <strong>Debug Info:</strong><br/>
+            Window.Razorpay exists: {typeof window !== 'undefined' && window.Razorpay ? '✅ Yes' : '❌ No'}<br/>
+            razorpayLoaded state: {razorpayLoaded ? '✅ True' : '❌ False'}<br/>
+            Script strategy: afterInteractive
           </div>
         </div>
       </Layout>

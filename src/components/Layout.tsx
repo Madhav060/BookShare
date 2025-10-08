@@ -1,6 +1,6 @@
-// src/components/Layout.tsx - UPDATED WITH PROFILE LINK
+// src/components/Layout.tsx - COMPLETELY FIXED: Clickable Profile Links
 import Link from "next/link";
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import NotificationBell from "./NotificationBell";
 import PointsWidget from "./PointsWidget";
@@ -11,6 +11,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -22,6 +23,29 @@ export default function Layout({ children }: { children: ReactNode }) {
     } else {
       router.push('/');
     }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+
+    if (userMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [userMenuOpen]);
+
+  // Handle navigation from dropdown
+  const handleNavigation = (path: string) => {
+    setUserMenuOpen(false);
+    router.push(path);
   };
 
   if (loading) {
@@ -122,9 +146,9 @@ export default function Layout({ children }: { children: ReactNode }) {
                   
                   <NotificationBell />
                   
-                  {/* User Menu */}
-                  <div style={{ position: 'relative' }}>
-                    <div
+                  {/* User Menu - FIXED WITH REF */}
+                  <div style={{ position: 'relative' }} ref={dropdownRef}>
+                    <button
                       onClick={() => setUserMenuOpen(!userMenuOpen)}
                       style={{ 
                         display: 'flex', 
@@ -135,7 +159,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                         borderRadius: 'var(--radius-lg)',
                         backdropFilter: 'blur(10px)',
                         cursor: 'pointer',
-                        transition: 'var(--transition)'
+                        transition: 'var(--transition)',
+                        border: 'none'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
@@ -177,9 +202,9 @@ export default function Layout({ children }: { children: ReactNode }) {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </button>
 
-                    {/* User Dropdown Menu */}
+                    {/* FIXED DROPDOWN MENU */}
                     {userMenuOpen && (
                       <div style={{
                         position: 'absolute',
@@ -189,52 +214,92 @@ export default function Layout({ children }: { children: ReactNode }) {
                         background: 'white',
                         border: '1px solid var(--gray-200)',
                         borderRadius: 'var(--radius-lg)',
-                        boxShadow: 'var(--shadow-xl)',
-                        zIndex: 1000,
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                        zIndex: 9999,
                         overflow: 'hidden'
                       }}>
-                        <a
-                          href="/profile"
-                          onClick={() => setUserMenuOpen(false)}
+                        {/* My Profile - COMPLETELY FIXED */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleNavigation('/profile');
+                          }}
                           style={{
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.75rem',
                             padding: '0.75rem 1rem',
                             color: 'var(--gray-900)',
-                            textDecoration: 'none',
+                            background: 'white',
+                            border: 'none',
+                            cursor: 'pointer',
                             transition: 'var(--transition)',
-                            borderBottom: '1px solid var(--gray-200)'
+                            borderBottom: '1px solid var(--gray-200)',
+                            fontSize: '1rem',
+                            fontWeight: '500',
+                            textAlign: 'left',
+                            fontFamily: 'inherit'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--gray-50)';
+                            e.currentTarget.style.paddingLeft = '1.25rem';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.paddingLeft = '1rem';
+                          }}
                         >
                           <span style={{ fontSize: '1.25rem' }}>👤</span>
-                          <span style={{ fontWeight: '500' }}>My Profile</span>
-                        </a>
+                          <span>My Profile</span>
+                        </button>
                         
-                        <a
-                          href="/points"
-                          onClick={() => setUserMenuOpen(false)}
+                        {/* My Points - COMPLETELY FIXED */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleNavigation('/points');
+                          }}
                           style={{
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.75rem',
                             padding: '0.75rem 1rem',
                             color: 'var(--gray-900)',
-                            textDecoration: 'none',
+                            background: 'white',
+                            border: 'none',
+                            cursor: 'pointer',
                             transition: 'var(--transition)',
-                            borderBottom: '1px solid var(--gray-200)'
+                            borderBottom: '1px solid var(--gray-200)',
+                            fontSize: '1rem',
+                            fontWeight: '500',
+                            textAlign: 'left',
+                            fontFamily: 'inherit'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--gray-50)';
+                            e.currentTarget.style.paddingLeft = '1.25rem';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.paddingLeft = '1rem';
+                          }}
                         >
                           <span style={{ fontSize: '1.25rem' }}>⭐</span>
-                          <span style={{ fontWeight: '500' }}>My Points</span>
-                        </a>
+                          <span>My Points</span>
+                        </button>
 
+                        {/* Logout Button */}
                         <button
-                          onClick={() => {
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             setUserMenuOpen(false);
                             logout();
                           }}
@@ -251,10 +316,17 @@ export default function Layout({ children }: { children: ReactNode }) {
                             transition: 'var(--transition)',
                             fontSize: '1rem',
                             fontWeight: '500',
-                            textAlign: 'left'
+                            textAlign: 'left',
+                            fontFamily: 'inherit'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--gray-50)';
+                            e.currentTarget.style.paddingLeft = '1.25rem';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'white';
+                            e.currentTarget.style.paddingLeft = '1rem';
+                          }}
                         >
                           <span style={{ fontSize: '1.25rem' }}>🚪</span>
                           <span>Logout</span>
@@ -347,21 +419,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </footer>
-
-      {/* Click outside to close dropdown */}
-      {userMenuOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 999
-          }}
-          onClick={() => setUserMenuOpen(false)}
-        />
-      )}
     </div>
   );
 }

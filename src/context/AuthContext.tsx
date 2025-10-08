@@ -1,4 +1,4 @@
-// src/context/AuthContext.tsx - FIXED SESSION PERSISTENCE
+// src/context/AuthContext.tsx - FIXED WITH updateUser METHOD
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { setAuthToken } from '../utils/api';
@@ -8,6 +8,12 @@ interface User {
   name: string;
   email: string;
   role: string;
+  bio?: string;
+  location?: string;
+  points?: number;
+  rating?: number;
+  totalBorrows?: number;
+  totalLends?: number;
 }
 
 interface AuthContextType {
@@ -15,6 +21,7 @@ interface AuthContextType {
   token: string | null;
   login: (user: User, token: string) => void;
   logout: () => void;
+  updateUser: (userData: Partial<User>) => void; // 🆕 NEW METHOD
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -97,12 +104,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   };
 
+  // 🆕 NEW METHOD: Update user data
+  const updateUser = (userData: Partial<User>) => {
+    if (!user) return;
+
+    const updatedUser = { ...user, ...userData };
+    
+    // Update state
+    setUser(updatedUser);
+    
+    // Update localStorage
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    
+    console.log('User updated:', updatedUser);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
       token, 
       login, 
       logout, 
+      updateUser, // 🆕 EXPOSE NEW METHOD
       isAuthenticated: !!user,
       loading 
     }}>

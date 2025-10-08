@@ -1,5 +1,5 @@
-// src/pages/login.tsx - Modern Enhanced UI
-import { useState } from 'react';
+// src/pages/login.tsx - FIXED: Auto-redirect if already logged in
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import api, { setAuthToken } from '../utils/api';
 import Layout from '../components/Layout';
@@ -10,7 +10,25 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, isAuthenticated, loading: authLoading, user } = useAuth();
+
+  // ✅ FIX: Redirect to home if already authenticated
+  useEffect(() => {
+    if (authLoading) return; // Wait for auth to load
+    
+    if (isAuthenticated) {
+      console.log('User already authenticated, redirecting...');
+      
+      // Redirect based on role
+      if (user?.role === 'DELIVERY_AGENT') {
+        router.push('/agent/dashboard');
+      } else if (user?.role === 'ADMIN') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/');
+      }
+    }
+  }, [isAuthenticated, authLoading, user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +42,7 @@ export default function Login() {
       setAuthToken(token);
       login(user, token);
       
+      // Redirect based on role
       if (user.role === 'DELIVERY_AGENT') {
         router.push('/agent/dashboard');
       } else if (user.role === 'ADMIN') {
@@ -37,6 +56,27 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <Layout>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          minHeight: '400px'
+        }}>
+          <div className="spinner"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Don't render login form if already authenticated (will redirect)
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <Layout>

@@ -1,4 +1,4 @@
-// src/pages/delivery/payment/[id].tsx - FIXED WITH RAZORPAY INTEGRATION
+// src/pages/delivery/payment/[id].tsx - FIXED RAZORPAY LOADING ISSUE
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Script from 'next/script';
@@ -22,6 +22,14 @@ export default function DeliveryPayment() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const { id } = router.query;
+
+  // ✅ FIX: Check if Razorpay is already loaded on mount (from cache)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Razorpay) {
+      console.log('Razorpay already loaded from cache');
+      setRazorpayLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -148,7 +156,11 @@ export default function DeliveryPayment() {
     <>
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
-        onLoad={() => setRazorpayLoaded(true)}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log('Razorpay script loaded');
+          setRazorpayLoaded(true);
+        }}
         onError={() => console.error('Failed to load Razorpay')}
       />
 
