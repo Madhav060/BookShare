@@ -1,262 +1,186 @@
-// ============================================
-// src/types/index.ts - UPDATED WITH POINTS SYSTEM
-// ============================================
+// src/types/index.ts - Add proper type definitions
 
 export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'USER' | 'DELIVERY_AGENT' | 'ADMIN';
-  bio?: string;
-  avatar?: string;
-  location?: string;
-  rating: number;
-  totalBorrows: number;
-  totalLends: number;
-  points: number; // 🆕 Added Points Field
-  createdAt: Date;
+  phone?: string;
+  address?: string;
+  role: 'USER' | 'AGENT' | 'ADMIN';
+  points: number;
+  profilePicture?: string;
+  createdAt: string | Date;
 }
-
-export interface UserBasic {
-  id: number;
-  name: string;
-  email: string;
-}
-
-// ============================================
-// BOOK & CATEGORY TYPES
-// ============================================
 
 export interface Book {
   id: number;
   title: string;
   author: string;
-  status: 'AVAILABLE' | 'BORROWED';
-  isVisible?: boolean;
-  deletedAt?: Date | null;
-  isbn?: string;
   description?: string;
+  genre?: string;
+  condition?: string;
   coverImage?: string;
-  publishYear?: number;
-  language: string;
-  pageCount?: number;
-  viewCount: number;
-  borrowCount: number;
-  ownerId?: number;
-  userId?: number;
-  createdAt: Date;
-  owner?: UserBasic;
-  holder?: UserBasic;
-  categories?: BookCategory[];
-  reviews?: Review[];
+  ownerId: number;
+  owner?: User;
+  isAvailable: boolean;
+  availableFrom?: string | Date;
+  availableTo?: string | Date;
+  categories?: Category[];
+  createdAt: string | Date;
 }
-
-export interface Category {
-  id: number;
-  name: string;
-}
-
-export interface BookCategory {
-  bookId: number;
-  categoryId: number;
-  category?: Category;
-}
-
-// ============================================
-// REVIEWS & RATINGS
-// ============================================
-
-export interface Review {
-  id: number;
-  bookId: number;
-  userId: number;
-  rating: number;
-  comment?: string;
-  createdAt: Date;
-  user?: UserBasic;
-}
-
-export interface UserRating {
-  id: number;
-  ratedUserId: number;
-  raterUserId: number;
-  rating: number;
-  comment?: string;
-  context: 'borrower' | 'lender';
-  createdAt: Date;
-  rater?: UserBasic;
-}
-
-// ============================================
-// BORROW REQUESTS
-// ============================================
 
 export interface BorrowRequest {
   id: number;
   bookId: number;
-  borrowerId: number;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED';
-  createdAt: Date;
   book?: Book;
-  borrower?: UserBasic;
-  delivery?: Delivery;
-}
-
-export interface RequestsResponse {
-  incoming: BorrowRequest[];
-  outgoing: BorrowRequest[];
-}
-
-// ============================================
-// DELIVERY AGENT & DELIVERY MODELS
-// ============================================
-
-export interface DeliveryAgentProfile {
-  id: number;
-  userId: number;
-  phoneNumber: string;
-  vehicleType?: string;
-  licenseNumber?: string;
-  isAvailable: boolean;
-  rating: number;
-  totalDeliveries: number;
-  createdAt: Date;
-  updatedAt: Date;
+  borrowerId: number;
+  borrower?: User;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'COMPLETED';
+  requestedAt: string | Date;
+  approvedAt?: string | Date;
+  returnedAt?: string | Date;
+  deliveries?: Delivery[];
+  pointsDeducted?: number;
 }
 
 export interface Delivery {
   id: number;
   borrowRequestId: number;
-  agentId?: number | null;
+  borrowRequest?: BorrowRequest;
+  agentId?: number;
+  agent?: User;
   pickupAddress: string;
   deliveryAddress: string;
-  status: DeliveryStatus;
-  pickupScheduled?: Date | null;
-  pickupCompleted?: Date | null;
-  deliveryCompleted?: Date | null;
-  trackingNotes?: string | null;
-  // ✅ NEW PAYMENT & VERIFICATION FIELDS
-  verificationCode?: string | null;
-  codeVerifiedAt?: Date | null;
-  paymentStatus: PaymentStatus;
-  paymentAmount?: number | null;
-  paymentId?: string | null;
-  // END NEW FIELDS
-  createdAt: Date;
-  updatedAt: Date;
-  agent?: UserBasic | null;
-  borrowRequest?: BorrowRequest;
+  deliveryFee: number;
+  status: 'PENDING' | 'ASSIGNED' | 'PICKED_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'COMPLETED';
+  type: 'FORWARD' | 'RETURN';
+  verificationCode?: string;
+  paymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paidAt?: string | Date;
+  pickedUpAt?: string | Date;
+  deliveredAt?: string | Date;
+  createdAt: string | Date;
 }
 
-export type DeliveryStatus =
-  | 'PENDING'
-  | 'ASSIGNED'
-  | 'PICKUP_SCHEDULED'
-  | 'PICKED_UP'
-  | 'IN_TRANSIT'
-  | 'DELIVERED'
-  | 'RETURN_SCHEDULED'
-  | 'RETURN_PICKED_UP'
-  | 'RETURN_DELIVERED'
-  | 'COMPLETED'
-  | 'CANCELLED';
-
-// ✅ NEW PAYMENT STATUS TYPE
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
-
-// ============================================
-// NOTIFICATIONS
-// ============================================
+export interface Category {
+  id: number;
+  name: string;
+  description?: string;
+}
 
 export interface Notification {
   id: number;
   userId: number;
-  type: NotificationType;
   title: string;
   message: string;
-  relatedId?: number;
-  isRead: boolean;
-  createdAt: Date;
+  type: string;
+  read: boolean;
+  link?: string;
+  createdAt: string | Date;
 }
 
-export type NotificationType =
-  | 'BORROW_REQUEST'
-  | 'REQUEST_ACCEPTED'
-  | 'REQUEST_REJECTED'
-  | 'BOOK_RETURNED'
-  | 'DELIVERY_ASSIGNED'
-  | 'DELIVERY_PICKED_UP'
-  | 'DELIVERY_DELIVERED'
-  | 'NEW_REVIEW'
-  | 'SYSTEM_MESSAGE';
-
-// ============================================
-// POINT SYSTEM (🆕 NEW ADDITIONS)
-// ============================================
-
-export interface PointTransaction {
-  id: number;
-  userId: number;
-  amount: number; // Positive for earning, negative for spending
-  type: 'BORROW' | 'LEND' | 'PURCHASE' | 'INITIAL' | 'REFUND';
-  description: string;
-  relatedId?: number | null; // BorrowRequest ID or Purchase ID
-  balanceAfter: number;
-  createdAt: Date;
-  user?: UserBasic;
-}
-
-export interface PointPurchase {
-  id: number;
-  userId: number;
-  points: number; // Points purchased
-  amount: number; // Amount paid in rupees
-  razorpayOrderId?: string | null;
-  razorpayPaymentId?: string | null;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED';
-  createdAt: Date;
-  completedAt?: Date | null;
-  user?: UserBasic;
-}
-
-// ============================================
-// FILTERS, PAGINATION, ANALYTICS
-// ============================================
-
-export interface SearchFilters {
-  q?: string;
-  category?: string[];
-  status?: 'AVAILABLE' | 'BORROWED';
-  sortBy?: 'recent' | 'popular' | 'rating';
-  page?: number;
-  limit?: number;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  totalPages: number;
+export interface AgentEarnings {
+  totalEarnings: number;
+  pendingEarnings: number;
+  completedDeliveries: number;
+  activeDeliveries: number;
+  recentEarnings: Array<{
+    date: string;
+    amount: number;
+    type: string;
+  }>;
 }
 
 export interface AnalyticsData {
-  totalUsers: number;
-  totalBooks: number;
-  activeBorrows: number;
-  totalDeliveries: number;
-  popularBooks: Array<{
-    id: number;
-    title: string;
-    author: string;
-    borrowCount: number;
+  totalBooks?: number;
+  activeRequests?: number;
+  totalUsers?: number;
+  completedDeliveries?: number;
+  totalBorrowedBooks?: number;
+  activeBorrows?: number;
+  pointsEarned?: number;
+  booksShared?: number;
+  recentActivity?: Array<{
+    date: string;
+    activity: string;
   }>;
-  categoryDistribution: Array<{
-    name: string;
-    count: number;
-  }>;
-  recentActivity: Array<{
-    type: string;
-    description: string;
-    timestamp: Date;
-  }>;
+}
+
+// API Response Types
+export interface ApiResponse<T = unknown> {
+  success?: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+export interface ApiError {
+  response?: {
+    data?: {
+      error?: string;
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+}
+
+// Form Data Types
+export interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+export interface RegisterFormData {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface BookFormData {
+  title: string;
+  author: string;
+  description?: string;
+  genre?: string;
+  condition?: string;
+  availableFrom?: string;
+  availableTo?: string;
+  categories?: number[];
+}
+
+// Razorpay Types
+export interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpayResponse) => void;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  theme?: {
+    color?: string;
+  };
+}
+
+export interface RazorpayResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+declare global {
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => {
+      open: () => void;
+    };
+  }
 }
