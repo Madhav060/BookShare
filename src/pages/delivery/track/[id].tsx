@@ -123,18 +123,20 @@ export default function TrackDelivery() {
           </p>
         </div>
 
-        {/* ✅ ENHANCED VERIFICATION CODE CARD - ALWAYS SHOW IF PAYMENT COMPLETED */}
+        {/* ✅ VERIFICATION CODE CARD - PROMINENTLY DISPLAYED */}
         {delivery.paymentStatus === 'COMPLETED' && delivery.verificationCode && (
           <div className="card" style={{
             background: delivery.codeVerifiedAt 
               ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
               : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             color: 'white',
-            padding: '2rem',
+            padding: '2.5rem',
             marginBottom: '2rem',
             textAlign: 'center',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            border: '3px solid rgba(255,255,255,0.3)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
           }}>
             {/* Animated Background Pattern */}
             <div style={{
@@ -150,78 +152,130 @@ export default function TrackDelivery() {
             <div style={{ position: 'relative', zIndex: 1 }}>
               {delivery.codeVerifiedAt ? (
                 <>
-                  <div style={{ fontSize: '1.25rem', marginBottom: '1rem', opacity: 0.9, fontWeight: '600' }}>
-                    ✓ VERIFICATION CODE (VERIFIED)
+                  <div style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    ✓ Code Verified Successfully
                   </div>
                   <div className="alert alert-success" style={{ 
                     background: 'rgba(255,255,255,0.2)',
                     color: 'white',
-                    marginBottom: '1rem'
+                    marginBottom: '1.5rem',
+                    border: '2px solid rgba(255,255,255,0.3)'
                   }}>
-                    <span>✅</span>
-                    <span>Code verified on {new Date(delivery.codeVerifiedAt).toLocaleString()}</span>
+                    <span style={{ fontSize: '1.5rem' }}>✅</span>
+                    <span>Verified on {new Date(delivery.codeVerifiedAt).toLocaleString()}</span>
                   </div>
                 </>
               ) : (
-                <div style={{ fontSize: '1.25rem', marginBottom: '1rem', opacity: 0.9, fontWeight: '600' }}>
-                  🔐 YOUR VERIFICATION CODE
+                <div style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  🔐 Your 6-Digit Verification Code
                 </div>
               )}
 
+              {/* CODE DISPLAY */}
               <div style={{
                 display: 'inline-block',
-                padding: '1.5rem 3rem',
-                background: 'rgba(0,0,0,0.2)',
+                padding: '2rem 3.5rem',
+                background: 'rgba(0,0,0,0.3)',
                 borderRadius: 'var(--radius-xl)',
                 marginBottom: '1.5rem',
                 backdropFilter: 'blur(10px)',
-                border: '2px solid rgba(255,255,255,0.3)'
+                border: '3px solid rgba(255,255,255,0.4)',
+                boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)'
               }}>
                 <div style={{
-                  fontSize: '3.5rem',
+                  fontSize: '4rem',
                   fontWeight: '700',
-                  letterSpacing: '0.5rem',
+                  letterSpacing: '0.8rem',
                   fontFamily: 'monospace',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                  userSelect: 'all'
-                }}>
+                  textShadow: '0 4px 8px rgba(0,0,0,0.3)',
+                  userSelect: 'all',
+                  cursor: 'pointer'
+                }}
+                onClick={copyCode}
+                title="Click to copy"
+                >
                   {delivery.verificationCode}
                 </div>
               </div>
 
-              <button
-                onClick={copyCode}
-                className="btn btn-secondary"
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '2px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  fontSize: '1.125rem',
-                  padding: '1rem 2rem'
-                }}
-              >
-                {copied ? (
-                  <>
-                    <span>✓</span>
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <span>📋</span>
-                    <span>Copy Code</span>
-                  </>
-                )}
-              </button>
+              {/* COPY BUTTON */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <button
+                  onClick={copyCode}
+                  className="btn btn-secondary"
+                  style={{
+                    background: 'rgba(255,255,255,0.25)',
+                    border: '2px solid rgba(255,255,255,0.4)',
+                    backdropFilter: 'blur(10px)',
+                    fontSize: '1.25rem',
+                    padding: '1rem 2.5rem',
+                    fontWeight: '700',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.35)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.25)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  {copied ? (
+                    <>
+                      <span style={{ fontSize: '1.5rem' }}>✓</span>
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '1.5rem' }}>📋</span>
+                      <span>Copy Code</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
+              {/* INSTRUCTIONS */}
               {!delivery.codeVerifiedAt && (
                 <div style={{ 
-                  marginTop: '1.5rem', 
-                  fontSize: '0.875rem', 
-                  opacity: 0.9,
-                  lineHeight: 1.6
+                  marginTop: '1.5rem',
+                  padding: '1.5rem',
+                  background: 'rgba(0,0,0,0.2)',
+                  borderRadius: 'var(--radius-lg)',
+                  backdropFilter: 'blur(10px)',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                  fontSize: '0.95rem',
+                  lineHeight: 1.8,
+                  textAlign: 'left'
                 }}>
-                  <strong>IMPORTANT:</strong> Share this code with the delivery agent when they arrive.<br/>
-                  The agent must verify this code before picking up the book.
+                  <div style={{ fontWeight: '700', marginBottom: '0.75rem', fontSize: '1.1rem' }}>
+                    📌 IMPORTANT INSTRUCTIONS:
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                    <li style={{ marginBottom: '0.5rem' }}>
+                      <strong>Share this code ONLY with the delivery agent</strong> when they arrive for pickup
+                    </li>
+                    <li style={{ marginBottom: '0.5rem' }}>
+                      The agent MUST verify this code before collecting the book
+                    </li>
+                    <li style={{ marginBottom: '0.5rem' }}>
+                      Keep this code safe - you can access it anytime on this page
+                    </li>
+                    <li>
+                      Do NOT share this code with anyone else for security
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {delivery.codeVerifiedAt && (
+                <div style={{ 
+                  marginTop: '1rem',
+                  fontSize: '0.95rem',
+                  opacity: 0.95,
+                  fontStyle: 'italic'
+                }}>
+                  Your code has been verified. The delivery agent can now proceed with pickup.
                 </div>
               )}
             </div>
@@ -239,6 +293,19 @@ export default function TrackDelivery() {
                 <a href={`/delivery/payment/${delivery.id}`} style={{ marginLeft: '0.5rem', fontWeight: 'bold' }}>
                   Pay Now →
                 </a>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* No Code Available (not authorized) */}
+        {delivery.paymentStatus === 'COMPLETED' && !delivery.verificationCode && (
+          <div className="alert alert-info mb-3">
+            <span>ℹ️</span>
+            <div>
+              <strong>Verification Code</strong>
+              <p style={{ margin: '0.5rem 0 0 0' }}>
+                Only the borrower, book owner, or assigned delivery agent can view the verification code for security reasons.
               </p>
             </div>
           </div>
