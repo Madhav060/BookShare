@@ -8,7 +8,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://bookshare_user:mypassword@localhost:5432/bookshare_db"
+  url      = "postgresql://postgres:Madhav060@db.sqmklhumcytklnjmfaxh.supabase.co:5432/postgres"
 }
 
 // ============================================
