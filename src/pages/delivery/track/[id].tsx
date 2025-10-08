@@ -1,30 +1,24 @@
-// src/pages/delivery/track/[id].tsx - Modern Enhanced UI
+// src/pages/delivery/track/[id].tsx - FIXED: No Auth Required + Shows Verification Code
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../../utils/api';
 import Layout from '../../../components/Layout';
-import { useAuth } from '../../../context/AuthContext';
 import { Delivery } from '../../../types';
 
 export default function TrackDelivery() {
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { isAuthenticated } = useAuth();
   const router = useRouter();
   const { id } = router.query;
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
     if (id) {
       loadDelivery();
-      const interval = setInterval(loadDelivery, 30000);
+      const interval = setInterval(loadDelivery, 30000); // Auto-refresh every 30 seconds
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated, id]);
+  }, [id]);
 
   const loadDelivery = async () => {
     try {
@@ -35,6 +29,13 @@ export default function TrackDelivery() {
       setError(err.response?.data?.error || 'Failed to load delivery information');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyCode = () => {
+    if (delivery?.verificationCode) {
+      navigator.clipboard.writeText(delivery.verificationCode);
+      alert('✅ Verification code copied to clipboard!');
     }
   };
 
@@ -62,17 +63,10 @@ export default function TrackDelivery() {
     return progressMap[status] || 0;
   };
 
-  if (!isAuthenticated) return null;
-
   if (loading) {
     return (
       <Layout>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          minHeight: '400px'
-        }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
           <div className="spinner"></div>
         </div>
       </Layout>
@@ -82,21 +76,13 @@ export default function TrackDelivery() {
   if (error || !delivery) {
     return (
       <Layout>
-        <div className="card" style={{ 
-          maxWidth: '600px', 
-          margin: '3rem auto', 
-          padding: '3rem',
-          textAlign: 'center' 
-        }}>
+        <div className="card" style={{ maxWidth: '600px', margin: '3rem auto', padding: '3rem', textAlign: 'center' }}>
           <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>❌</div>
           <h2 style={{ color: 'var(--error)', marginBottom: '1rem' }}>
             {error || 'Delivery not found'}
           </h2>
-          <button
-            onClick={() => router.push('/requests')}
-            className="btn btn-primary"
-          >
-            Back to Requests
+          <button onClick={() => router.push('/')} className="btn btn-primary">
+            Back to Home
           </button>
         </div>
       </Layout>
@@ -117,8 +103,70 @@ export default function TrackDelivery() {
           </p>
         </div>
 
+        {/* Verification Code Card - Show ONLY if payment completed */}
+        {delivery.paymentStatus === 'COMPLETED' && delivery.verificationCode && (
+          <div className="card" style={{
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: 'white',
+            padding: '2rem',
+            marginBottom: '2rem',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '1rem', marginBottom: '1rem', opacity: 0.9, fontWeight: '600' }}>
+              🔐 YOUR VERIFICATION CODE
+            </div>
+            <div style={{
+              fontSize: '3.5rem',
+              fontWeight: '700',
+              letterSpacing: '0.5rem',
+              fontFamily: 'monospace',
+              marginBottom: '1rem',
+              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }}>
+              {delivery.verificationCode}
+            </div>
+            <button
+              onClick={copyCode}
+              className="btn btn-secondary"
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              <span>📋</span>
+              <span>Copy Code</span>
+            </button>
+            <div style={{ marginTop: '1rem', fontSize: '0.875rem', opacity: 0.9 }}>
+              Share this code with the delivery agent when they arrive
+            </div>
+            {delivery.codeVerifiedAt && (
+              <div className="alert alert-success" style={{ marginTop: '1rem', background: 'rgba(255,255,255,0.2)' }}>
+                <span>✅</span>
+                <span>Code verified on {new Date(delivery.codeVerifiedAt).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Payment Pending Alert */}
+        {delivery.paymentStatus === 'PENDING' && (
+          <div className="alert alert-warning mb-3">
+            <span>⏳</span>
+            <div>
+              <strong>Payment Pending</strong>
+              <p style={{ margin: '0.5rem 0 0 0' }}>
+                Please complete the payment to receive your verification code.
+                <a href={`/delivery/payment/${delivery.id}`} style={{ marginLeft: '0.5rem', fontWeight: 'bold' }}>
+                  Pay Now →
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Current Status Card */}
-        <div className="card" style={{ 
+        <div className="card" style={{
           background: statusInfo.gradient,
           color: 'white',
           padding: '3rem',
@@ -128,17 +176,10 @@ export default function TrackDelivery() {
           <div style={{ fontSize: '5rem', marginBottom: '1rem' }}>
             {statusInfo.icon}
           </div>
-          <h2 style={{ 
-            color: 'white', 
-            fontSize: '2rem',
-            marginBottom: '0.5rem'
-          }}>
+          <h2 style={{ color: 'white', fontSize: '2rem', marginBottom: '0.5rem' }}>
             {statusInfo.label}
           </h2>
-          <p style={{ 
-            fontSize: '1.125rem',
-            color: 'rgba(255,255,255,0.9)'
-          }}>
+          <p style={{ fontSize: '1.125rem', color: 'rgba(255,255,255,0.9)' }}>
             {delivery.borrowRequest?.book?.title ?? 'Unknown Title'}
           </p>
         </div>
@@ -180,13 +221,7 @@ export default function TrackDelivery() {
         <div className="grid grid-cols-2" style={{ marginBottom: '2rem' }}>
           {/* Addresses Card */}
           <div className="card">
-            <h3 style={{ 
-              marginTop: 0, 
-              marginBottom: '1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span>📍</span> Addresses
             </h3>
             <div style={{ marginBottom: '1.5rem' }}>
@@ -201,13 +236,7 @@ export default function TrackDelivery() {
 
           {/* People Card */}
           <div className="card">
-            <h3 style={{ 
-              marginTop: 0, 
-              marginBottom: '1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span>👥</span> People Involved
             </h3>
             <div style={{ marginBottom: '1rem' }}>
@@ -221,7 +250,7 @@ export default function TrackDelivery() {
             {delivery.agent && (
               <div>
                 <div className="label">Delivery Agent</div>
-                <div style={{ 
+                <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem',
@@ -253,7 +282,7 @@ export default function TrackDelivery() {
 
         {/* Tracking Notes */}
         {delivery.trackingNotes && (
-          <div className="alert alert-info">
+          <div className="alert alert-info mb-3">
             <span style={{ fontSize: '1.5rem' }}>📝</span>
             <div>
               <strong>Tracking Notes</strong>
@@ -264,9 +293,7 @@ export default function TrackDelivery() {
 
         {/* Timeline */}
         <div className="card" style={{ padding: '2rem' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '2rem' }}>
-            ⏱️ Delivery Timeline
-          </h3>
+          <h3 style={{ marginTop: 0, marginBottom: '2rem' }}>⏱️ Delivery Timeline</h3>
           <div style={{ position: 'relative' }}>
             <TimelineItem
               date={delivery.createdAt}
@@ -306,29 +333,18 @@ export default function TrackDelivery() {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ 
-          marginTop: '2rem',
-          display: 'flex',
-          gap: '1rem',
-          justifyContent: 'center'
-        }}>
-          <button
-            onClick={loadDelivery}
-            className="btn btn-primary"
-          >
+        <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <button onClick={loadDelivery} className="btn btn-primary">
             <span>🔄</span>
             <span>Refresh Status</span>
           </button>
-          <button
-            onClick={() => router.push('/requests')}
-            className="btn btn-outline"
-          >
+          <button onClick={() => router.push('/')} className="btn btn-outline">
             <span>←</span>
-            <span>Back to Requests</span>
+            <span>Back to Home</span>
           </button>
         </div>
 
-        <p style={{ 
+        <p style={{
           textAlign: 'center',
           marginTop: '1rem',
           fontSize: '0.875rem',
@@ -341,12 +357,12 @@ export default function TrackDelivery() {
   );
 }
 
-function TimelineItem({ 
-  date, 
-  title, 
-  icon, 
+function TimelineItem({
+  date,
+  title,
+  icon,
   completed,
-  isLast 
+  isLast
 }: {
   date: Date;
   title: string;
@@ -361,7 +377,6 @@ function TimelineItem({
       marginBottom: isLast ? 0 : '2rem',
       position: 'relative'
     }}>
-      {/* Timeline Line */}
       {!isLast && (
         <div style={{
           position: 'absolute',
@@ -372,13 +387,11 @@ function TimelineItem({
           background: completed ? 'var(--success)' : 'var(--gray-300)'
         }} />
       )}
-
-      {/* Icon Circle */}
       <div style={{
         width: '40px',
         height: '40px',
         borderRadius: '50%',
-        background: completed 
+        background: completed
           ? 'linear-gradient(135deg, #34d399 0%, #10b981 100%)'
           : 'var(--gray-200)',
         display: 'flex',
@@ -391,10 +404,8 @@ function TimelineItem({
       }}>
         {icon}
       </div>
-
-      {/* Content */}
       <div style={{ flex: 1, paddingTop: '0.25rem' }}>
-        <h4 style={{ 
+        <h4 style={{
           margin: 0,
           marginBottom: '0.25rem',
           color: completed ? 'var(--gray-900)' : 'var(--gray-500)',
@@ -402,11 +413,7 @@ function TimelineItem({
         }}>
           {title}
         </h4>
-        <p style={{ 
-          margin: 0,
-          fontSize: '0.875rem',
-          color: 'var(--gray-500)'
-        }}>
+        <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-500)' }}>
           {new Date(date).toLocaleString()}
         </p>
       </div>

@@ -1,17 +1,25 @@
-// src/pages/delivery/payment/[id].tsx
+// src/pages/delivery/payment/[id].tsx - FIXED WITH RAZORPAY INTEGRATION
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Script from 'next/script';
 import api from '../../../utils/api';
 import Layout from '../../../components/Layout';
 import { useAuth } from '../../../context/AuthContext';
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 export default function DeliveryPayment() {
   const [delivery, setDelivery] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [error, setError] = useState('');
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const { id } = router.query;
 
@@ -30,14 +38,8 @@ export default function DeliveryPayment() {
       const res = await api.get(`/delivery/track/${id}`);
       setDelivery(res.data);
       
-      // Check if payment already completed
       if (res.data.paymentStatus === 'COMPLETED') {
         setError('Payment already completed for this delivery');
-      }
-      
-      // Check if code is verified
-      if (!res.data.codeVerifiedAt) {
-        setError('Verification code must be validated before payment');
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load delivery');
@@ -46,21 +48,79 @@ export default function DeliveryPayment() {
     }
   };
 
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePayment = async () => {
+    if (!razorpayLoaded || !window.Razorpay) {
+      alert('Payment system is loading. Please wait...');
+      return;
+    }
+
     setProcessing(true);
     setError('');
 
     try {
-      const res = await api.post(`/delivery/${id}/payment`, {
-        paymentMethod
+      // Create Razorpay order
+      const orderRes = await api.post('/payment/create-order', {
+        deliveryId: id,
+        amount: delivery.paymentAmount || 50
       });
 
-      alert('Payment successful! Your delivery will be processed.');
-      router.push(`/delivery/track/${id}`);
+      const { orderId, amount, currency, keyId, verificationCode } = orderRes.data;
+
+      // Razorpay options
+      const options = {
+        key: keyId,
+        amount: amount,
+        currency: currency,
+        name: 'BookShare Delivery',
+        description: `Delivery Payment for Book: ${delivery.borrowRequest?.book?.title}`,
+        order_id: orderId,
+        handler: async function (response: any) {
+          try {
+            // Verify payment
+            const verifyRes = await api.post('/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              deliveryId: id
+            });
+
+            alert(`✅ ${verifyRes.data.message}\n\n🔐 Your Verification Code: ${verifyRes.data.verificationCode}\n\nShare this code with the delivery agent when they arrive.`);
+            
+            // Redirect to tracking page
+            router.push(`/delivery/track/${id}`);
+          } catch (err: any) {
+            alert('❌ Payment verification failed. Please contact support.');
+            console.error('Verification error:', err);
+          } finally {
+            setProcessing(false);
+          }
+        },
+        prefill: {
+          name: user?.name,
+          email: user?.email,
+        },
+        theme: {
+          color: '#667eea'
+        },
+        modal: {
+          ondismiss: function() {
+            setProcessing(false);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      
+      rzp.on('payment.failed', function (response: any) {
+        alert(`❌ Payment failed: ${response.error.description}`);
+        console.error('Payment error:', response.error);
+        setProcessing(false);
+      });
+
+      rzp.open();
+
     } catch (err: any) {
       setError(err.response?.data?.error || 'Payment failed');
-    } finally {
       setProcessing(false);
     }
   };
@@ -68,232 +128,120 @@ export default function DeliveryPayment() {
   if (!isAuthenticated) return null;
 
   if (loading) {
-    return <Layout><p>Loading...</p></Layout>;
+    return <Layout><div className="spinner"></div></Layout>;
   }
 
   if (error && !delivery) {
     return (
       <Layout>
-        <div style={{ maxWidth: '600px', margin: '50px auto', textAlign: 'center' }}>
-          <div style={{ padding: '40px', background: '#ffebee', borderRadius: '8px' }}>
-            <h2 style={{ color: '#c62828' }}>❌ {error}</h2>
-            <button
-              onClick={() => router.push('/requests')}
-              style={{
-                marginTop: '20px',
-                padding: '10px 20px',
-                background: '#3498db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Back to Requests
-            </button>
-          </div>
+        <div className="card" style={{ maxWidth: '600px', margin: '50px auto', padding: '40px', textAlign: 'center' }}>
+          <h2 style={{ color: 'var(--error)' }}>❌ {error}</h2>
+          <button onClick={() => router.push('/requests')} className="btn btn-primary" style={{ marginTop: '20px' }}>
+            Back to Requests
+          </button>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout>
-      <div style={{ maxWidth: '600px', margin: '50px auto' }}>
-        <h1>💳 Payment Gateway</h1>
-        
-        {/* Delivery Summary */}
-        <div style={{
-          padding: '20px',
-          background: 'white',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          marginBottom: '30px'
-        }}>
-          <h2 style={{ marginTop: 0 }}>Delivery Summary</h2>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>Delivery ID:</strong> #{delivery?.id}
-          </div>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>Status:</strong> {delivery?.status}
-          </div>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>Pickup:</strong> {delivery?.pickupAddress}
-          </div>
-          <div style={{ marginBottom: '10px' }}>
-            <strong>Delivery:</strong> {delivery?.deliveryAddress}
-          </div>
-          {delivery?.codeVerifiedAt && (
-            <div style={{
-              marginTop: '15px',
-              padding: '10px',
-              background: '#d4edda',
-              borderRadius: '4px',
-              color: '#155724'
-            }}>
-              ✓ Verification code confirmed
-            </div>
-          )}
-        </div>
+    <>
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        onLoad={() => setRazorpayLoaded(true)}
+        onError={() => console.error('Failed to load Razorpay')}
+      />
 
-        {/* Payment Form */}
-        <form onSubmit={handlePayment}>
-          <div style={{
-            padding: '30px',
-            background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '8px'
-          }}>
+      <Layout>
+        <div style={{ maxWidth: '600px', margin: '50px auto' }}>
+          <h1>💳 Payment Gateway</h1>
+          
+          {/* Delivery Summary */}
+          <div className="card" style={{ marginBottom: '30px' }}>
+            <h2 style={{ marginTop: 0 }}>Delivery Summary</h2>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Delivery ID:</strong> #{delivery?.id}
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Book:</strong> {delivery?.borrowRequest?.book?.title}
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Status:</strong> {delivery?.status}
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Pickup:</strong> {delivery?.pickupAddress}
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <strong>Delivery:</strong> {delivery?.deliveryAddress}
+            </div>
+          </div>
+
+          {/* Payment Form */}
+          <div className="card">
             <h2 style={{ marginTop: 0 }}>Payment Details</h2>
 
             {/* Amount */}
             <div style={{
               padding: '20px',
-              background: '#e3f2fd',
-              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 'var(--radius-lg)',
+              color: 'white',
               marginBottom: '25px',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '14px', color: '#7f8c8d', marginBottom: '5px' }}>
+              <div style={{ fontSize: '14px', marginBottom: '5px', opacity: 0.9 }}>
                 Amount to Pay
               </div>
-              <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#2c3e50' }}>
+              <div style={{ fontSize: '48px', fontWeight: 'bold' }}>
                 ₹{delivery?.paymentAmount || 50}
               </div>
             </div>
 
-            {/* Payment Method */}
-            <div style={{ marginBottom: '25px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
-                Select Payment Method
-              </label>
-              
-              {/* Card */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '15px',
-                border: paymentMethod === 'card' ? '2px solid #3498db' : '2px solid #ddd',
-                borderRadius: '8px',
-                marginBottom: '10px',
-                cursor: 'pointer',
-                background: paymentMethod === 'card' ? '#e3f2fd' : 'white'
-              }}>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="card"
-                  checked={paymentMethod === 'card'}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ marginRight: '10px' }}
-                />
-                <span style={{ fontSize: '20px', marginRight: '10px' }}>💳</span>
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>Credit/Debit Card</div>
-                  <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
-                    Visa, Mastercard, RuPay
-                  </div>
-                </div>
-              </label>
-
-              {/* UPI */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '15px',
-                border: paymentMethod === 'upi' ? '2px solid #3498db' : '2px solid #ddd',
-                borderRadius: '8px',
-                marginBottom: '10px',
-                cursor: 'pointer',
-                background: paymentMethod === 'upi' ? '#e3f2fd' : 'white'
-              }}>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="upi"
-                  checked={paymentMethod === 'upi'}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ marginRight: '10px' }}
-                />
-                <span style={{ fontSize: '20px', marginRight: '10px' }}>📱</span>
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>UPI</div>
-                  <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
-                    Google Pay, PhonePe, Paytm
-                  </div>
-                </div>
-              </label>
-
-              {/* Wallet */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '15px',
-                border: paymentMethod === 'wallet' ? '2px solid #3498db' : '2px solid #ddd',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                background: paymentMethod === 'wallet' ? '#e3f2fd' : 'white'
-              }}>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value="wallet"
-                  checked={paymentMethod === 'wallet'}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ marginRight: '10px' }}
-                />
-                <span style={{ fontSize: '20px', marginRight: '10px' }}>👛</span>
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>Digital Wallet</div>
-                  <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
-                    Paytm, Amazon Pay, etc.
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            {/* Dummy Notice */}
-            <div style={{
-              padding: '15px',
-              background: '#fff3cd',
-              border: '1px solid #ffc107',
-              borderRadius: '4px',
-              marginBottom: '20px',
-              fontSize: '13px'
-            }}>
-              <strong>⚠️ Demo Mode:</strong> This is a dummy payment gateway for demonstration purposes. 
-              No actual payment will be processed. Click "Pay Now" to simulate payment.
-            </div>
-
-            {error && (
-              <div style={{
-                padding: '15px',
-                background: '#ffebee',
-                color: '#c62828',
-                borderRadius: '4px',
-                marginBottom: '20px'
-              }}>
-                {error}
+            {delivery?.paymentStatus === 'COMPLETED' && (
+              <div className="alert alert-success mb-3">
+                <span>✅</span>
+                <span>Payment already completed for this delivery.</span>
               </div>
             )}
 
+            {error && (
+              <div className="alert alert-error mb-3">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="alert alert-info mb-3">
+              <span>🔐</span>
+              <div>
+                <strong>Secure Payment:</strong> Your payment is processed securely through Razorpay. 
+                After successful payment, you'll receive a 6-digit verification code to share with the delivery agent.
+              </div>
+            </div>
+
             {/* Submit Button */}
             <button
-              type="submit"
-              disabled={processing}
-              style={{
-                width: '100%',
-                padding: '15px',
-                background: processing ? '#95a5a6' : '#27ae60',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: processing ? 'not-allowed' : 'pointer'
-              }}
+              onClick={handlePayment}
+              disabled={processing || !razorpayLoaded || delivery?.paymentStatus === 'COMPLETED'}
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%' }}
             >
-              {processing ? 'Processing...' : `Pay ₹${delivery?.paymentAmount || 50}`}
+              {processing ? (
+                <>
+                  <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }}></div>
+                  <span>Processing...</span>
+                </>
+              ) : !razorpayLoaded ? (
+                <>
+                  <span>⏳</span>
+                  <span>Loading Payment Gateway...</span>
+                </>
+              ) : (
+                <>
+                  <span>💳</span>
+                  <span>Pay ₹{delivery?.paymentAmount || 50} via Razorpay</span>
+                </>
+              )}
             </button>
 
             {/* Security Badge */}
@@ -301,13 +249,13 @@ export default function DeliveryPayment() {
               marginTop: '20px',
               textAlign: 'center',
               fontSize: '12px',
-              color: '#7f8c8d'
+              color: 'var(--gray-500)'
             }}>
-              🔒 Secured by 256-bit SSL encryption
+              🔒 Secured by Razorpay with 256-bit SSL encryption
             </div>
           </div>
-        </form>
-      </div>
-    </Layout>
+        </div>
+      </Layout>
+    </>
   );
 }

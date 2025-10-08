@@ -1,14 +1,16 @@
-// src/components/Layout.tsx - Modern Enhanced UI
+// src/components/Layout.tsx - UPDATED WITH PROFILE LINK
 import Link from "next/link";
 import { ReactNode, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import NotificationBell from "./NotificationBell";
+import PointsWidget from "./PointsWidget";
 import { useRouter } from "next/router";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -79,10 +81,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '2rem',
-              '@media (max-width: 768px)': {
-                display: 'none'
-              }
+              gap: '2rem'
             }}>
               {isAuthenticated && (
                 <>
@@ -118,66 +117,151 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               {isAuthenticated ? (
                 <>
+                  {/* Points Widget - Only for regular users */}
+                  {user?.role === 'USER' && <PointsWidget />}
+                  
                   <NotificationBell />
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '0.75rem',
-                    padding: '0.5rem 1rem',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: 'var(--radius-lg)',
-                    backdropFilter: 'blur(10px)'
-                  }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontWeight: '700',
-                      fontSize: '1.125rem'
-                    }}>
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ 
-                        color: 'white', 
-                        fontWeight: '600',
-                        fontSize: '0.875rem'
+                  
+                  {/* User Menu */}
+                  <div style={{ position: 'relative' }}>
+                    <div
+                      onClick={() => setUserMenuOpen(!userMenuOpen)}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.75rem',
+                        padding: '0.5rem 1rem',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: 'var(--radius-lg)',
+                        backdropFilter: 'blur(10px)',
+                        cursor: 'pointer',
+                        transition: 'var(--transition)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+                    >
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontWeight: '700',
+                        fontSize: '1.125rem'
                       }}>
-                        {user?.name}
-                      </span>
-                      {user?.role !== 'USER' && (
+                        {user?.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ 
-                          fontSize: '0.625rem',
-                          padding: '0.125rem 0.5rem',
-                          background: user?.role === 'ADMIN' ? 'var(--error)' : 'var(--success)',
-                          borderRadius: 'var(--radius-sm)',
-                          color: 'white',
-                          fontWeight: '700',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
+                          color: 'white', 
+                          fontWeight: '600',
+                          fontSize: '0.875rem'
                         }}>
-                          {user?.role === 'ADMIN' ? 'Admin' : 'Agent'}
+                          {user?.name}
                         </span>
-                      )}
+                        {user?.role !== 'USER' && (
+                          <span style={{ 
+                            fontSize: '0.625rem',
+                            padding: '0.125rem 0.5rem',
+                            background: user?.role === 'ADMIN' ? 'var(--error)' : 'var(--success)',
+                            borderRadius: 'var(--radius-sm)',
+                            color: 'white',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {user?.role === 'ADMIN' ? 'Admin' : 'Agent'}
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* User Dropdown Menu */}
+                    {userMenuOpen && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 10px)',
+                        right: 0,
+                        width: '220px',
+                        background: 'white',
+                        border: '1px solid var(--gray-200)',
+                        borderRadius: 'var(--radius-lg)',
+                        boxShadow: 'var(--shadow-xl)',
+                        zIndex: 1000,
+                        overflow: 'hidden'
+                      }}>
+                        <a
+                          href="/profile"
+                          onClick={() => setUserMenuOpen(false)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.75rem 1rem',
+                            color: 'var(--gray-900)',
+                            textDecoration: 'none',
+                            transition: 'var(--transition)',
+                            borderBottom: '1px solid var(--gray-200)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                        >
+                          <span style={{ fontSize: '1.25rem' }}>👤</span>
+                          <span style={{ fontWeight: '500' }}>My Profile</span>
+                        </a>
+                        
+                        <a
+                          href="/points"
+                          onClick={() => setUserMenuOpen(false)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.75rem 1rem',
+                            color: 'var(--gray-900)',
+                            textDecoration: 'none',
+                            transition: 'var(--transition)',
+                            borderBottom: '1px solid var(--gray-200)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                        >
+                          <span style={{ fontSize: '1.25rem' }}>⭐</span>
+                          <span style={{ fontWeight: '500' }}>My Points</span>
+                        </a>
+
+                        <button
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            logout();
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.75rem 1rem',
+                            color: 'var(--error)',
+                            background: 'white',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'var(--transition)',
+                            fontSize: '1rem',
+                            fontWeight: '500',
+                            textAlign: 'left'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--gray-50)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                        >
+                          <span style={{ fontSize: '1.25rem' }}>🚪</span>
+                          <span>Logout</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <button 
-                    onClick={logout}
-                    className="btn btn-sm"
-                    style={{ 
-                      background: 'rgba(255, 255, 255, 0.2)',
-                      color: 'white',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)'
-                    }}
-                  >
-                    Logout
-                  </button>
                 </>
               ) : (
                 <>
@@ -263,11 +347,26 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </footer>
+
+      {/* Click outside to close dropdown */}
+      {userMenuOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999
+          }}
+          onClick={() => setUserMenuOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-function NavLink({ href, children }: { href: string; children: ReactNode }) {
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   const router = useRouter();
   const isActive = router.pathname === href;
   
@@ -301,7 +400,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-function FooterLink({ href, children }: { href: string; children: ReactNode }) {
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <li style={{ marginBottom: '0.5rem' }}>
       <a 
