@@ -1,4 +1,4 @@
-// src/pages/delivery/track/[id].tsx - FIXED: No Auth Required + Shows Verification Code
+// src/pages/delivery/track/[id].tsx - ENHANCED WITH VERIFICATION CODE ACCESS
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import api from '../../../utils/api';
@@ -9,13 +9,14 @@ export default function TrackDelivery() {
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
   const { id } = router.query;
 
   useEffect(() => {
     if (id) {
       loadDelivery();
-      const interval = setInterval(loadDelivery, 30000); // Auto-refresh every 30 seconds
+      const interval = setInterval(loadDelivery, 30000);
       return () => clearInterval(interval);
     }
   }, [id]);
@@ -32,10 +33,29 @@ export default function TrackDelivery() {
     }
   };
 
-  const copyCode = () => {
-    if (delivery?.verificationCode) {
-      navigator.clipboard.writeText(delivery.verificationCode);
-      alert('✅ Verification code copied to clipboard!');
+  const copyCode = async () => {
+    if (!delivery?.verificationCode) return;
+    
+    try {
+      await navigator.clipboard.writeText(delivery.verificationCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = delivery.verificationCode;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        alert('Failed to copy code. Please copy manually: ' + delivery.verificationCode);
+      }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -103,49 +123,108 @@ export default function TrackDelivery() {
           </p>
         </div>
 
-        {/* Verification Code Card - Show ONLY if payment completed */}
+        {/* ✅ ENHANCED VERIFICATION CODE CARD - ALWAYS SHOW IF PAYMENT COMPLETED */}
         {delivery.paymentStatus === 'COMPLETED' && delivery.verificationCode && (
           <div className="card" style={{
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            background: delivery.codeVerifiedAt 
+              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+              : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             color: 'white',
             padding: '2rem',
             marginBottom: '2rem',
-            textAlign: 'center'
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden'
           }}>
-            <div style={{ fontSize: '1rem', marginBottom: '1rem', opacity: 0.9, fontWeight: '600' }}>
-              🔐 YOUR VERIFICATION CODE
-            </div>
+            {/* Animated Background Pattern */}
             <div style={{
-              fontSize: '3.5rem',
-              fontWeight: '700',
-              letterSpacing: '0.5rem',
-              fontFamily: 'monospace',
-              marginBottom: '1rem',
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}>
-              {delivery.verificationCode}
-            </div>
-            <button
-              onClick={copyCode}
-              className="btn btn-secondary"
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                backdropFilter: 'blur(10px)'
-              }}
-            >
-              <span>📋</span>
-              <span>Copy Code</span>
-            </button>
-            <div style={{ marginTop: '1rem', fontSize: '0.875rem', opacity: 0.9 }}>
-              Share this code with the delivery agent when they arrive
-            </div>
-            {delivery.codeVerifiedAt && (
-              <div className="alert alert-success" style={{ marginTop: '1rem', background: 'rgba(255,255,255,0.2)' }}>
-                <span>✅</span>
-                <span>Code verified on {new Date(delivery.codeVerifiedAt).toLocaleString()}</span>
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              opacity: 0.1,
+              background: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,.1) 10px, rgba(255,255,255,.1) 20px)'
+            }}></div>
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {delivery.codeVerifiedAt ? (
+                <>
+                  <div style={{ fontSize: '1.25rem', marginBottom: '1rem', opacity: 0.9, fontWeight: '600' }}>
+                    ✓ VERIFICATION CODE (VERIFIED)
+                  </div>
+                  <div className="alert alert-success" style={{ 
+                    background: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    marginBottom: '1rem'
+                  }}>
+                    <span>✅</span>
+                    <span>Code verified on {new Date(delivery.codeVerifiedAt).toLocaleString()}</span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: '1.25rem', marginBottom: '1rem', opacity: 0.9, fontWeight: '600' }}>
+                  🔐 YOUR VERIFICATION CODE
+                </div>
+              )}
+
+              <div style={{
+                display: 'inline-block',
+                padding: '1.5rem 3rem',
+                background: 'rgba(0,0,0,0.2)',
+                borderRadius: 'var(--radius-xl)',
+                marginBottom: '1.5rem',
+                backdropFilter: 'blur(10px)',
+                border: '2px solid rgba(255,255,255,0.3)'
+              }}>
+                <div style={{
+                  fontSize: '3.5rem',
+                  fontWeight: '700',
+                  letterSpacing: '0.5rem',
+                  fontFamily: 'monospace',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                  userSelect: 'all'
+                }}>
+                  {delivery.verificationCode}
+                </div>
               </div>
-            )}
+
+              <button
+                onClick={copyCode}
+                className="btn btn-secondary"
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  backdropFilter: 'blur(10px)',
+                  fontSize: '1.125rem',
+                  padding: '1rem 2rem'
+                }}
+              >
+                {copied ? (
+                  <>
+                    <span>✓</span>
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📋</span>
+                    <span>Copy Code</span>
+                  </>
+                )}
+              </button>
+
+              {!delivery.codeVerifiedAt && (
+                <div style={{ 
+                  marginTop: '1.5rem', 
+                  fontSize: '0.875rem', 
+                  opacity: 0.9,
+                  lineHeight: 1.6
+                }}>
+                  <strong>IMPORTANT:</strong> Share this code with the delivery agent when they arrive.<br/>
+                  The agent must verify this code before picking up the book.
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -219,7 +298,6 @@ export default function TrackDelivery() {
 
         {/* Details Grid */}
         <div className="grid grid-cols-2" style={{ marginBottom: '2rem' }}>
-          {/* Addresses Card */}
           <div className="card">
             <h3 style={{ marginTop: 0, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span>📍</span> Addresses
@@ -234,7 +312,6 @@ export default function TrackDelivery() {
             </div>
           </div>
 
-          {/* People Card */}
           <div className="card">
             <h3 style={{ marginTop: 0, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span>👥</span> People Involved
@@ -338,9 +415,9 @@ export default function TrackDelivery() {
             <span>🔄</span>
             <span>Refresh Status</span>
           </button>
-          <button onClick={() => router.push('/')} className="btn btn-outline">
+          <button onClick={() => router.push('/requests')} className="btn btn-outline">
             <span>←</span>
-            <span>Back to Home</span>
+            <span>Back to Requests</span>
           </button>
         </div>
 

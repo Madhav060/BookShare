@@ -1,4 +1,4 @@
-// src/pages/requests.tsx - FIXED SESSION PERSISTENCE
+// src/pages/requests.tsx - UPDATED WITH RETURN DELIVERY
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -12,7 +12,12 @@ export default function Requests() {
   const [activeTab, setActiveTab] = useState<'incoming' | 'outgoing'>('incoming');
   const [dataLoading, setDataLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
-  const { isAuthenticated, loading } = useAuth();
+  const [showReturnModal, setShowReturnModal] = useState<number | null>(null);
+  const [returnAddresses, setReturnAddresses] = useState({
+    pickupAddress: '',
+    deliveryAddress: ''
+  });
+  const { isAuthenticated, loading, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -63,6 +68,33 @@ export default function Requests() {
     }
   };
 
+  const handleReturnDelivery = async (requestId: number) => {
+    if (!returnAddresses.pickupAddress || !returnAddresses.deliveryAddress) {
+      alert('Please provide both pickup and delivery addresses');
+      return;
+    }
+
+    setProcessing(requestId);
+    try {
+      const res = await api.post('/delivery/return/request', {
+        borrowRequestId: requestId,
+        pickupAddress: returnAddresses.pickupAddress,
+        deliveryAddress: returnAddresses.deliveryAddress
+      });
+
+      alert(`✅ ${res.data.message}\n\n🔐 Your Verification Code: ${res.data.verificationCode}\n\nShare this code with the delivery agent.`);
+      setShowReturnModal(null);
+      setReturnAddresses({ pickupAddress: '', deliveryAddress: '' });
+      
+      // Redirect to track the return delivery
+      router.push(`/delivery/track/${res.data.delivery.id}`);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to create return delivery');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PENDING': return '#f39c12';
@@ -81,6 +113,13 @@ export default function Requests() {
       case 'COMPLETED': return '✓ Completed';
       default: return status;
     }
+  };
+
+  // Check if request has a return delivery
+  const hasReturnDelivery = (request: BorrowRequest) => {
+    // This would need to be checked via API - for now we'll check if delivery exists
+    // In a real implementation, you'd need to modify the API to include return delivery info
+    return false; // Placeholder
   };
 
   if (loading) {
@@ -366,45 +405,174 @@ export default function Requests() {
                               color: 'white',
                               textDecoration: 'none',
                               borderRadius: '4px',
-                              fontWeight: 'bold'
+                              fontWeight: 'bold',
+                              marginRight: '10px'
                             }}>
                             🚚 Request Delivery Service
                           </Link>
                         ) : (
-                          <div style={{ fontSize: '14px', marginTop: '5px' }}>
-                            Delivery requested. <Link href={`/delivery/track/${request.delivery.id}`} style={{ color: '#155724', fontWeight: 'bold' }}>Track delivery →</Link>
-                          </div>
+                          <>
+                            {/* ✅ NEW: REQUEST RETURN DELIVERY BUTTON */}
+                            <button
+                              onClick={() => setShowReturnModal(request.id)}
+                              style={{
+                                padding: '8px 16px',
+                                background: '#f39c12',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                              }}
+                            >
+                              🔄 Request Return Delivery (Free)
+                            </button>
+                          </>
                         )}
-                      </div>
-                    )}
-                    
-                    {request.status === 'REJECTED' && (
-                      <div style={{ 
-                        marginTop: '15px', 
-                        padding: '10px', 
-                        background: '#f8d7da', 
-                        borderRadius: '4px',
-                        color: '#721c24'
-                      }}>
-                        ✗ Your request was rejected by the owner.
-                      </div>
-                    )}
-                    
-                    {request.status === 'COMPLETED' && (
-                      <div style={{ 
-                        marginTop: '15px', 
-                        padding: '10px', 
-                        background: '#d1ecf1', 
-                        borderRadius: '4px',
-                        color: '#0c5460'
-                      }}>
-                        ✓ This borrow transaction is complete. Thank you!
                       </div>
                     )}
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ✅ RETURN DELIVERY MODAL */}
+        {showReturnModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="card" style={{ 
+              maxWidth: '600px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflow: 'auto'
+            }}>
+              <div style={{ 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h2 style={{ margin: 0 }}>🔄 Request Return Delivery</h2>
+                <button
+                  onClick={() => {
+                    setShowReturnModal(null);
+                    setReturnAddresses({ pickupAddress: '', deliveryAddress: '' });
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    cursor: 'pointer',
+                    color: 'var(--gray-500)'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="alert alert-success mb-3">
+                <span>🎉</span>
+                <div>
+                  <strong>Free Return Service!</strong>
+                  <p style={{ margin: '0.5rem 0 0 0' }}>
+                    Return delivery is FREE and will be handled by the same delivery agent.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label className="label">Pickup Address (Your Location)</label>
+                <textarea
+                  className="input"
+                  placeholder="Enter your full address where the agent will pick up the book"
+                  value={returnAddresses.pickupAddress}
+                  onChange={(e) => setReturnAddresses({ 
+                    ...returnAddresses, 
+                    pickupAddress: e.target.value 
+                  })}
+                  rows={3}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label className="label">Delivery Address (Book Owner's Location)</label>
+                <textarea
+                  className="input"
+                  placeholder="Enter the book owner's full address"
+                  value={returnAddresses.deliveryAddress}
+                  onChange={(e) => setReturnAddresses({ 
+                    ...returnAddresses, 
+                    deliveryAddress: e.target.value 
+                  })}
+                  rows={3}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              <div className="alert alert-info mb-3">
+                <span>ℹ️</span>
+                <div>
+                  <strong>How it works:</strong>
+                  <ul style={{ margin: '0.5rem 0 0 0', paddingLeft: '1.5rem' }}>
+                    <li>Same delivery agent will be automatically assigned</li>
+                    <li>No payment required - completely FREE</li>
+                    <li>You'll receive a new verification code</li>
+                    <li>Agent will pick up from you and deliver to owner</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button
+                  onClick={() => {
+                    setShowReturnModal(null);
+                    setReturnAddresses({ pickupAddress: '', deliveryAddress: '' });
+                  }}
+                  className="btn btn-outline"
+                  style={{ flex: 1 }}
+                  disabled={processing !== null}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleReturnDelivery(showReturnModal)}
+                  className="btn btn-secondary"
+                  style={{ flex: 2 }}
+                  disabled={processing !== null}
+                >
+                  {processing === showReturnModal ? (
+                    <>
+                      <div className="spinner" style={{ 
+                        width: '20px', 
+                        height: '20px',
+                        borderWidth: '2px'
+                      }}></div>
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔄</span>
+                      <span>Request Return Delivery</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
